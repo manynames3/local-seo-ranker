@@ -10,6 +10,9 @@ const roadmap = document.querySelector("#roadmap");
 const reportTitle = document.querySelector("#report-title");
 const reportSubtitle = document.querySelector("#report-subtitle");
 const totalScore = document.querySelector("#total-score");
+const territoryMap = document.querySelector("#territory-map");
+const marketPulse = document.querySelector("#market-pulse");
+const quickRead = document.querySelector("#quick-read");
 const exportButtons = {
   copy: document.querySelector("#copy-report"),
   json: document.querySelector("#download-json"),
@@ -503,6 +506,99 @@ function buildRoadmap(input, scores, topicItems, linkItems) {
   }));
 }
 
+function deterministicNoise(input, x, y) {
+  const seed = `${input.websiteUrl}|${input.businessName}|${input.city}|${input.keyword}`
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return ((seed + x * 17 + y * 31 + x * y * 7) % 9) - 4;
+}
+
+function buildTerritory(input, scores, competitors) {
+  const size = 13;
+  const center = Math.floor(size / 2);
+  const cells = [];
+  const ranks = [];
+  const userStrength =
+    (scores.topicalAuthority +
+      scores.localRelevance +
+      scores.serviceCoverage +
+      scores.trustSignals +
+      scores.gbpReadiness) /
+    5;
+  const baseRank = clamp(12 - userStrength / 10 + competitors.length * 0.75, 2, 18);
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = x - center;
+      const dy = y - center;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > 6.25) {
+        cells.push({ x, y, empty: true });
+        continue;
+      }
+
+      const competitorPocket = x < center - 2 && y > center + 1 ? 3.8 : 0;
+      const localCoreLift = distance < 2.2 ? -3.2 : 0;
+      const neighborhoodDrag = distance > 4.8 ? 1.6 : 0;
+      const rank = clamp(
+        baseRank +
+          distance * 0.68 +
+          deterministicNoise(input, x, y) * 0.42 +
+          competitorPocket +
+          localCoreLift +
+          neighborhoodDrag,
+        1,
+        20
+      );
+      ranks.push(rank);
+      cells.push({
+        x,
+        y,
+        rank,
+        center: x === center && y === center,
+        tone: rankTone(rank)
+      });
+    }
+  }
+
+  const wins = ranks.filter((rank) => rank <= 3).length;
+  const nearWins = ranks.filter((rank) => rank > 3 && rank <= 7).length;
+  const weak = ranks.filter((rank) => rank >= 11).length;
+  const averageRank = clamp(ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length, 1, 20);
+  const coverage = clamp((wins / ranks.length) * 100);
+  const contested = clamp(((nearWins + weak) / ranks.length) * 100);
+  const radius = `${Math.max(4, 5 + competitors.length * 2)} mi`;
+
+  return {
+    size,
+    cells,
+    averageRank,
+    coverage,
+    contested,
+    weak,
+    wins,
+    radius,
+    market: `${input.city || "Target city"}, ${input.state || "State"}`,
+    gridSize: `${size} x ${size}`,
+    dataStatus: "Estimated grid until live Maps/SERP rank checks are connected."
+  };
+}
+
+function rankTone(rank) {
+  if (rank <= 3) return "win";
+  if (rank <= 6) return "near";
+  if (rank <= 10) return "watch";
+  if (rank <= 14) return "losing";
+  return "critical";
+}
+
+function weakestLayer(scores) {
+  return scoreDefinitions
+    .filter(([key]) => key !== "totalOpportunity")
+    .map(([key, label]) => ({ key, label, score: scores[key] }))
+    .sort((a, b) => a.score - b.score)[0];
+}
+
 function analyzeLocalSeo(input) {
   const signals = inferInputSignals(input);
   const scores = scoreUser(input, signals);
@@ -512,6 +608,7 @@ function analyzeLocalSeo(input) {
   const links = buildInternalLinks(input);
   const ai = buildAiReadiness(input, scores);
   const roadmapGroups = buildRoadmap(input, scores, topics, links);
+  const territory = buildTerritory(input, scores, input.competitors);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -524,6 +621,7 @@ function analyzeLocalSeo(input) {
     links,
     ai,
     roadmap: roadmapGroups,
+    territory,
     futureIntegrations: [
       "Google Search Console API",
       "Google Business Profile API",
@@ -540,9 +638,12 @@ function analyzeLocalSeo(input) {
 function renderReport(report) {
   currentReport = report;
   const { input, scores } = report;
-  reportTitle.textContent = `${input.businessName || domainFromUrl(input.websiteUrl)} local SEO authority gap`;
-  reportSubtitle.textContent = `Here is where competitors may have stronger local authority for "${input.keyword}" in ${input.city}, ${input.state}, and the highest-leverage build plan to close the gap.`;
+  reportTitle.textContent = `${input.city}, ${input.state}: ${input.keyword} territory`;
+  reportSubtitle.textContent = `${input.businessName || domainFromUrl(input.websiteUrl)} is being scored against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust.`;
   totalScore.textContent = scores.totalOpportunity;
+  renderTerritory(report);
+  renderMarketPulse(report);
+  renderQuickRead(report);
   renderScorecards(scores);
   renderComparison(report.competitors);
   renderTopics(report.topics);
@@ -551,6 +652,117 @@ function renderReport(report) {
   renderAiReadiness(report.ai);
   renderRoadmap(report.roadmap);
   setExportsEnabled(true);
+}
+
+function renderTerritory(report) {
+  const territory = report.territory;
+  territoryMap.className = "territory-map";
+  territoryMap.innerHTML = `
+    <div class="territory-shell">
+      <div>
+        <div class="map-surface" aria-label="Estimated local rank grid for ${escapeHtml(territory.market)}">
+          <div class="territory-grid" style="grid-template-columns: repeat(${territory.size}, minmax(17px, 1fr));">
+            ${territory.cells
+              .map((cell) =>
+                cell.empty
+                  ? `<span class="rank-cell empty"></span>`
+                  : `<span class="rank-cell ${cell.tone}${cell.center ? " center" : ""}" title="Estimated rank ${cell.rank}">${cell.rank}</span>`
+              )
+              .join("")}
+          </div>
+        </div>
+        <div class="map-legend" aria-label="Rank grid legend">
+          <span>1-3: local pack</span>
+          <span>4-6: near win</span>
+          <span>7-10: contested</span>
+          <span>11+: weak zone</span>
+        </div>
+      </div>
+      <div class="territory-insights">
+        <h4>${escapeHtml(territory.market)}</h4>
+        <div class="insight-row">
+          <span>Average grid rank</span>
+          <strong>${territory.averageRank}</strong>
+          <p>Directional estimate across a ${territory.radius} competitive radius.</p>
+        </div>
+        <div class="insight-row">
+          <span>Local pack cells</span>
+          <strong>${territory.coverage}%</strong>
+          <p>${territory.wins} estimated cells rank in positions 1-3.</p>
+        </div>
+        <div class="insight-row">
+          <span>Weak pockets</span>
+          <strong>${territory.weak}</strong>
+          <p>Likely neighborhoods or service modifiers where stronger competitors can win.</p>
+        </div>
+        <div class="insight-row">
+          <span>Model status</span>
+          <strong>${territory.gridSize}</strong>
+          <p>${territory.dataStatus}</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMarketPulse(report) {
+  const strongestCompetitor = report.competitors
+    .filter((row) => row.id !== "user")
+    .sort((a, b) => b.overallStrength - a.overallStrength)[0];
+  const confidence = report.input.competitors.length >= 3 ? "High direction" : report.input.competitors.length ? "Moderate direction" : "Low direction";
+  marketPulse.className = "pulse-grid";
+  marketPulse.innerHTML = `
+    <div class="pulse-metric">
+      <span>Opportunity score</span>
+      <strong>${report.scores.totalOpportunity}/100</strong>
+      <p>Higher means more upside from closing authority gaps.</p>
+    </div>
+    <div class="pulse-metric">
+      <span>Coverage pressure</span>
+      <strong>${report.territory.contested}%</strong>
+      <p>Estimated grid cells that are near-win, contested, or weak.</p>
+    </div>
+    <div class="pulse-metric">
+      <span>Competitor ceiling</span>
+      <strong>${strongestCompetitor ? strongestCompetitor.overallStrength : "--"}</strong>
+      <p>${strongestCompetitor ? escapeHtml(domainFromUrl(strongestCompetitor.website)) : "Add competitors to estimate the ceiling."}</p>
+    </div>
+    <div class="pulse-metric">
+      <span>Confidence</span>
+      <strong>${confidence}</strong>
+      <p>${report.modelStatus}</p>
+    </div>
+  `;
+}
+
+function renderQuickRead(report) {
+  const weakest = weakestLayer(report.scores);
+  const firstTopic = report.topics[0];
+  const firstTask = report.roadmap[0]?.tasks[0];
+  quickRead.className = "quick-read";
+  quickRead.innerHTML = `
+    <div class="quick-read-item">
+      <b>1</b>
+      <div>
+        <strong>Weakest authority layer: ${escapeHtml(weakest.label.replace(" Score", ""))}</strong>
+        <p>This layer is scoring ${weakest.score}/100, so the roadmap should prioritize proof, coverage, and structure around it.</p>
+      </div>
+    </div>
+    <div class="quick-read-item">
+      <b>2</b>
+      <div>
+        <strong>First content asset: ${escapeHtml(firstTopic.topic)}</strong>
+        <p>${escapeHtml(firstTopic.why)}</p>
+      </div>
+    </div>
+    <div class="quick-read-item">
+      <b>3</b>
+      <div>
+        <strong>First operational task: ${escapeHtml(firstTask?.name || "Audit GBP and internal links")}</strong>
+        <p>${escapeHtml(firstTask?.why || "Make the business, service, and market relationship explicit.")}</p>
+      </div>
+    </div>
+  `;
 }
 
 function renderScorecards(scores) {
@@ -756,7 +968,7 @@ function escapeHtml(value) {
 
 function reportToText(report) {
   const lines = [
-    `Local SEO Authority Gap Report`,
+    `Local SEO Ranker Territory Report`,
     `Generated: ${new Date(report.generatedAt).toLocaleString()}`,
     `Status: ${report.modelStatus}`,
     ``,
@@ -764,6 +976,13 @@ function reportToText(report) {
     `Website: ${report.input.websiteUrl}`,
     `Market: ${report.input.city}, ${report.input.state}`,
     `Keyword: ${report.input.keyword}`,
+    ``,
+    `Territory`,
+    `- Average grid rank: ${report.territory.averageRank}`,
+    `- Local pack coverage: ${report.territory.coverage}%`,
+    `- Coverage pressure: ${report.territory.contested}%`,
+    `- Weak pockets: ${report.territory.weak}`,
+    `- Radius: ${report.territory.radius}`,
     ``,
     `Scores`,
     ...scoreDefinitions.map(([, label], index) => {
@@ -785,6 +1004,10 @@ function reportToText(report) {
 
 function reportToCsv(report) {
   const rows = [["Section", "Item", "Score or Priority", "Impact", "Difficulty", "Notes"]];
+  rows.push(["Territory", "Average grid rank", report.territory.averageRank, "", "", report.territory.dataStatus]);
+  rows.push(["Territory", "Local pack coverage", `${report.territory.coverage}%`, "", "", `${report.territory.wins} estimated cells in positions 1-3`]);
+  rows.push(["Territory", "Coverage pressure", `${report.territory.contested}%`, "", "", "Near-win, contested, or weak cells"]);
+  rows.push(["Territory", "Weak pockets", report.territory.weak, "", "", `Estimated radius ${report.territory.radius}`]);
   scoreDefinitions.forEach(([key, label, description]) => {
     rows.push(["Score", label, report.scores[key], "", "", description]);
   });
@@ -833,6 +1056,10 @@ form.addEventListener("submit", (event) => {
 });
 
 demoButton.addEventListener("click", () => {
+  loadDemo();
+});
+
+function loadDemo() {
   const demo = {
     websiteUrl: "https://atlanta-hometownroofing.example",
     businessName: "Hometown Roofing Atlanta",
@@ -851,7 +1078,11 @@ demoButton.addEventListener("click", () => {
     if (field) field.value = value;
   });
   form.requestSubmit();
-});
+}
+
+if (new URLSearchParams(window.location.search).get("demo") === "1") {
+  loadDemo();
+}
 
 exportButtons.copy.addEventListener("click", async () => {
   if (!currentReport) return;
@@ -861,12 +1092,12 @@ exportButtons.copy.addEventListener("click", async () => {
 
 exportButtons.json.addEventListener("click", () => {
   if (!currentReport) return;
-  downloadFile("local-seo-authority-report.json", JSON.stringify(currentReport, null, 2), "application/json");
+  downloadFile("local-seo-ranker-report.json", JSON.stringify(currentReport, null, 2), "application/json");
 });
 
 exportButtons.csv.addEventListener("click", () => {
   if (!currentReport) return;
-  downloadFile("local-seo-authority-report.csv", reportToCsv(currentReport), "text/csv");
+  downloadFile("local-seo-ranker-report.csv", reportToCsv(currentReport), "text/csv");
 });
 
 exportButtons.print.addEventListener("click", () => {
@@ -874,5 +1105,5 @@ exportButtons.print.addEventListener("click", () => {
   window.print();
 });
 
-// API integration seam: replace analyzeLocalSeo with a pipeline that enriches the same report shape from
+// API integration note: replace analyzeLocalSeo with a pipeline that enriches the same report shape from
 // GSC, GBP, SERP, PageSpeed, crawler, Places, review, citation, and link intelligence providers.

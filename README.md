@@ -1,4 +1,4 @@
-# Local SEO Authority Analyzer
+# Local SEO Ranker
 
 Standalone static Local SEO Competitive Intelligence tool.
 
@@ -6,7 +6,7 @@ Standalone static Local SEO Competitive Intelligence tool.
 
 - Accepts a business website, business name, target city/state, main service keyword, up to three competitors, optional Maps/GBP URL, and notes.
 - Generates a deterministic Local SEO Authority Gap Report.
-- Shows scorecards, competitor comparison, topic gaps, entity signals, internal linking recommendations, AI search readiness, and a priority roadmap.
+- Shows an estimated territory rank grid, market pulse, scorecards, competitor comparison, topic gaps, entity signals, internal linking recommendations, AI search readiness, and a priority roadmap.
 - Exports report copy, JSON, CSV, and print output.
 
 Current scoring is intentionally labeled as estimated / placeholder until live crawl, GBP, SERP, GSC, citation, review, and third-party SEO data sources are connected.

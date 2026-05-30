@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Local SEO Authority Analyzer: deterministic local SEO gap reports for service businesses."
+      content="Local SEO Ranker: territory, competitor, entity, and content gap analysis for local service businesses."
     />
-    <title>Local SEO Authority Analyzer</title>
+    <title>Local SEO Ranker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,32 +17,48 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Report setup">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
+    <div class="app-frame">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Local SEO Ranker home">
+          <span class="brand-mark" aria-hidden="true">
             <span></span>
             <span></span>
             <span></span>
-          </div>
-          <div>
-            <strong>Authority Analyzer</strong>
-            <small>Local SEO gap report</small>
-          </div>
-        </div>
+          </span>
+          <span>
+            <strong>Local SEO Ranker</strong>
+            <small>Territory authority console</small>
+          </span>
+        </a>
 
-        <form id="seo-form" class="input-panel">
-          <div class="panel-heading">
-            <p class="eyebrow">Step 1</p>
-            <h1>Build a local authority gap report</h1>
+        <section class="export-bar" aria-label="Export options">
+          <button id="copy-report" type="button" disabled>Copy</button>
+          <button id="download-json" type="button" disabled>JSON</button>
+          <button id="download-csv" type="button" disabled>CSV</button>
+          <button id="print-report" type="button" disabled>Print</button>
+        </section>
+      </header>
+
+      <main class="workspace">
+        <section class="hero-strip">
+          <div class="hero-copy">
+            <p class="eyebrow">Reverse engineering local winners</p>
+            <h1>Find who owns the topic inside the territory.</h1>
             <p>
-              Enter the business, target market, keyword, and competitors. Current scoring is estimated and
-              deterministic until live crawl and ranking data are connected.
+              A market view for topical dominance, entity reinforcement, service-depth authority,
+              semantic coverage, internal links, and AI-readable trust signals.
             </p>
           </div>
+          <div class="hero-proof" aria-label="Current model status">
+            <span>Estimated model</span>
+            <strong>API-ready</strong>
+            <small>Built for crawl, SERP, GBP, GSC, review, and citation inputs.</small>
+          </div>
+        </section>
 
+        <form id="seo-form" class="scan-panel">
           <label>
-            Business website URL
+            Business website
             <input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://example.com" required />
           </label>
 
@@ -51,9 +67,14 @@
             <input id="businessName" name="businessName" type="text" placeholder="Acme Roofing" required />
           </label>
 
-          <div class="field-grid">
+          <label>
+            Main keyword
+            <input id="keyword" name="keyword" type="text" placeholder="roof repair" required />
+          </label>
+
+          <div class="market-fields">
             <label>
-              Target city
+              City
               <input id="city" name="city" type="text" placeholder="Atlanta" required />
             </label>
             <label>
@@ -63,71 +84,84 @@
           </div>
 
           <label>
-            Main service keyword
-            <input id="keyword" name="keyword" type="text" placeholder="roof repair" required />
-          </label>
-
-          <label>
-            Google Business Profile or Maps URL
+            GBP / Maps URL
             <input id="mapsUrl" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." />
           </label>
 
-          <div class="competitor-stack" aria-label="Competitor inputs">
-            <div class="section-label">Competitors</div>
+          <div class="competitor-fields" aria-label="Competitor URLs">
+            <span>Competitors</span>
             <input id="competitor1" name="competitor1" type="url" placeholder="Competitor 1 URL" />
             <input id="competitor2" name="competitor2" type="url" placeholder="Competitor 2 URL" />
             <input id="competitor3" name="competitor3" type="url" placeholder="Competitor 3 URL" />
           </div>
 
-          <label>
-            Notes
+          <label class="notes-field">
+            Market notes
             <textarea
               id="notes"
               name="notes"
-              rows="4"
-              placeholder="Known weaknesses, locations, services, GBP status, reviews, or competitors to watch."
+              rows="3"
+              placeholder="Known gaps, reviews, service pages, city pages, citations, project examples, or GBP status."
             ></textarea>
           </label>
 
           <div class="form-actions">
-            <button class="primary-action" type="submit">
-              <span>Analyze authority gap</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 12h12m-5-5 5 5-5 5" />
-              </svg>
-            </button>
+            <button class="primary-action" type="submit">Run market scan</button>
             <button class="ghost-action" id="demo-button" type="button">Load demo</button>
           </div>
         </form>
-      </aside>
 
-      <main class="dashboard">
-        <section class="summary-band" id="summary">
-          <div>
-            <p class="eyebrow">Step 2</p>
-            <h2 id="report-title">Your report will appear here</h2>
-            <p id="report-subtitle">
-              Use the form to generate a practical local SEO build plan grounded in relevance, distance,
-              prominence, helpful content, structured data, and entity clarity.
+        <section class="market-board">
+          <article class="territory-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Territory rank grid</p>
+                <h2 id="report-title">Run a scan to map the market</h2>
+              </div>
+              <div class="summary-score" aria-label="Total opportunity score">
+                <span id="total-score">--</span>
+                <small>Opportunity</small>
+              </div>
+            </div>
+            <p id="report-subtitle" class="report-subtitle">
+              The strongest local SEO tools should show territory coverage first, then explain what content,
+              entity, and trust gaps are creating the weak spots.
             </p>
-          </div>
-          <div class="summary-score" aria-label="Total opportunity score">
-            <span id="total-score">--</span>
-            <small>Total opportunity</small>
-          </div>
-        </section>
+            <div id="territory-map" class="territory-map empty-map">
+              <div class="empty-map-surface" aria-hidden="true"></div>
+              <p>Run a scan to populate estimated rank positions, coverage pockets, and weak zones.</p>
+            </div>
+          </article>
 
-        <section class="export-bar" aria-label="Export options">
-          <button id="copy-report" type="button" disabled>Copy report</button>
-          <button id="download-json" type="button" disabled>Download JSON</button>
-          <button id="download-csv" type="button" disabled>Download CSV</button>
-          <button id="print-report" type="button" disabled>Print report</button>
+          <aside class="market-sidebar">
+            <article class="market-card">
+              <div class="card-header compact">
+                <div>
+                  <p class="eyebrow">Market pulse</p>
+                  <h3>Estimated local visibility</h3>
+                </div>
+              </div>
+              <div id="market-pulse" class="pulse-grid empty-copy">Scan results will populate this panel.</div>
+            </article>
+
+            <article class="market-card">
+              <div class="card-header compact">
+                <div>
+                  <p class="eyebrow">Strategic read</p>
+                  <h3>Where the work starts</h3>
+                </div>
+              </div>
+              <div id="quick-read" class="quick-read empty-copy">
+                The first read will identify the weakest authority layer and the next page/system to build.
+              </div>
+            </article>
+          </aside>
         </section>
 
         <section id="scorecards" class="score-grid empty-state">
           <article>
-            <span class="placeholder-kicker">Waiting for inputs</span>
-            <h3>Scorecards, competitor gaps, entity signals, links, AI readiness, and a prioritized roadmap will render here.</h3>
+            <span class="placeholder-kicker">Waiting for scan</span>
+            <h3>Authority scores will appear here after the first market scan.</h3>
           </article>
         </section>
 
@@ -136,60 +170,60 @@
             <div class="card-header">
               <div>
                 <p class="eyebrow">Competitor comparison</p>
-                <h3>Estimated local authority strength</h3>
+                <h3>Who has stronger local authority</h3>
               </div>
-              <span class="status-pill neutral">Placeholder model</span>
+              <span class="status-pill neutral">Directional model</span>
             </div>
             <div id="comparison-table" class="table-wrap empty-copy">
-              Add at least one competitor URL to see gap-weighted estimates.
+              Add competitor URLs to compare topical coverage, service depth, city relevance, trust, links, schema, and freshness.
             </div>
           </article>
 
           <article class="report-card">
-            <div class="card-header">
+            <div class="card-header compact">
               <div>
-                <p class="eyebrow">Topic gap analysis</p>
-                <h3>What to build next</h3>
+                <p class="eyebrow">Topic gaps</p>
+                <h3>Pages competitors can beat you with</h3>
               </div>
             </div>
             <div id="topic-gaps" class="list-stack empty-copy">
-              Generate a report to see keyword and city-specific content gaps.
+              Keyword and city-specific topic gaps will appear here.
             </div>
           </article>
 
           <article class="report-card">
-            <div class="card-header">
+            <div class="card-header compact">
               <div>
                 <p class="eyebrow">Entity signals</p>
                 <h3>Trust and consistency checklist</h3>
               </div>
             </div>
             <div id="entity-signals" class="checklist empty-copy">
-              Generate a report to see entity alignment recommendations.
+              Entity alignment recommendations will appear here.
             </div>
           </article>
 
           <article class="report-card">
-            <div class="card-header">
+            <div class="card-header compact">
               <div>
-                <p class="eyebrow">Internal linking</p>
-                <h3>Recommended link paths</h3>
+                <p class="eyebrow">Internal links</p>
+                <h3>Authority flow plan</h3>
               </div>
             </div>
             <div id="internal-links" class="link-plan empty-copy">
-              Generate a report to map supporting pages into money pages.
+              Internal link paths from broad authority into money pages will appear here.
             </div>
           </article>
 
           <article class="report-card">
-            <div class="card-header">
+            <div class="card-header compact">
               <div>
                 <p class="eyebrow">AI search readiness</p>
-                <h3>Machine-readable authority</h3>
+                <h3>Can machines understand the business?</h3>
               </div>
             </div>
             <div id="ai-readiness" class="readiness-list empty-copy">
-              Generate a report to evaluate clear identity, services, proof, process, FAQs, and structured data.
+              AI-readable identity, service, proof, process, FAQ, and schema checks will appear here.
             </div>
           </article>
 
@@ -197,11 +231,11 @@
             <div class="card-header">
               <div>
                 <p class="eyebrow">Priority roadmap</p>
-                <h3>Highest-leverage build plan</h3>
+                <h3>Build plan to close the territory gap</h3>
               </div>
             </div>
             <div id="roadmap" class="roadmap empty-copy">
-              Generate a report to see tasks grouped by this week, this month, and next quarter.
+              Tasks grouped by this week, this month, and next quarter will appear here.
             </div>
           </article>
         </section>
