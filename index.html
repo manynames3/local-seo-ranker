@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Local SEO Authority Analyzer: deterministic local SEO gap reports for service businesses."
+    />
+    <title>Local SEO Authority Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Report setup">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <strong>Authority Analyzer</strong>
+            <small>Local SEO gap report</small>
+          </div>
+        </div>
+
+        <form id="seo-form" class="input-panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Step 1</p>
+            <h1>Build a local authority gap report</h1>
+            <p>
+              Enter the business, target market, keyword, and competitors. Current scoring is estimated and
+              deterministic until live crawl and ranking data are connected.
+            </p>
+          </div>
+
+          <label>
+            Business website URL
+            <input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://example.com" required />
+          </label>
+
+          <label>
+            Business name
+            <input id="businessName" name="businessName" type="text" placeholder="Acme Roofing" required />
+          </label>
+
+          <div class="field-grid">
+            <label>
+              Target city
+              <input id="city" name="city" type="text" placeholder="Atlanta" required />
+            </label>
+            <label>
+              State
+              <input id="state" name="state" type="text" placeholder="GA" maxlength="30" required />
+            </label>
+          </div>
+
+          <label>
+            Main service keyword
+            <input id="keyword" name="keyword" type="text" placeholder="roof repair" required />
+          </label>
+
+          <label>
+            Google Business Profile or Maps URL
+            <input id="mapsUrl" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." />
+          </label>
+
+          <div class="competitor-stack" aria-label="Competitor inputs">
+            <div class="section-label">Competitors</div>
+            <input id="competitor1" name="competitor1" type="url" placeholder="Competitor 1 URL" />
+            <input id="competitor2" name="competitor2" type="url" placeholder="Competitor 2 URL" />
+            <input id="competitor3" name="competitor3" type="url" placeholder="Competitor 3 URL" />
+          </div>
+
+          <label>
+            Notes
+            <textarea
+              id="notes"
+              name="notes"
+              rows="4"
+              placeholder="Known weaknesses, locations, services, GBP status, reviews, or competitors to watch."
+            ></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button class="primary-action" type="submit">
+              <span>Analyze authority gap</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h12m-5-5 5 5-5 5" />
+              </svg>
+            </button>
+            <button class="ghost-action" id="demo-button" type="button">Load demo</button>
+          </div>
+        </form>
+      </aside>
+
+      <main class="dashboard">
+        <section class="summary-band" id="summary">
+          <div>
+            <p class="eyebrow">Step 2</p>
+            <h2 id="report-title">Your report will appear here</h2>
+            <p id="report-subtitle">
+              Use the form to generate a practical local SEO build plan grounded in relevance, distance,
+              prominence, helpful content, structured data, and entity clarity.
+            </p>
+          </div>
+          <div class="summary-score" aria-label="Total opportunity score">
+            <span id="total-score">--</span>
+            <small>Total opportunity</small>
+          </div>
+        </section>
+
+        <section class="export-bar" aria-label="Export options">
+          <button id="copy-report" type="button" disabled>Copy report</button>
+          <button id="download-json" type="button" disabled>Download JSON</button>
+          <button id="download-csv" type="button" disabled>Download CSV</button>
+          <button id="print-report" type="button" disabled>Print report</button>
+        </section>
+
+        <section id="scorecards" class="score-grid empty-state">
+          <article>
+            <span class="placeholder-kicker">Waiting for inputs</span>
+            <h3>Scorecards, competitor gaps, entity signals, links, AI readiness, and a prioritized roadmap will render here.</h3>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="report-card wide">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Competitor comparison</p>
+                <h3>Estimated local authority strength</h3>
+              </div>
+              <span class="status-pill neutral">Placeholder model</span>
+            </div>
+            <div id="comparison-table" class="table-wrap empty-copy">
+              Add at least one competitor URL to see gap-weighted estimates.
+            </div>
+          </article>
+
+          <article class="report-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Topic gap analysis</p>
+                <h3>What to build next</h3>
+              </div>
+            </div>
+            <div id="topic-gaps" class="list-stack empty-copy">
+              Generate a report to see keyword and city-specific content gaps.
+            </div>
+          </article>
+
+          <article class="report-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Entity signals</p>
+                <h3>Trust and consistency checklist</h3>
+              </div>
+            </div>
+            <div id="entity-signals" class="checklist empty-copy">
+              Generate a report to see entity alignment recommendations.
+            </div>
+          </article>
+
+          <article class="report-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Internal linking</p>
+                <h3>Recommended link paths</h3>
+              </div>
+            </div>
+            <div id="internal-links" class="link-plan empty-copy">
+              Generate a report to map supporting pages into money pages.
+            </div>
+          </article>
+
+          <article class="report-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">AI search readiness</p>
+                <h3>Machine-readable authority</h3>
+              </div>
+            </div>
+            <div id="ai-readiness" class="readiness-list empty-copy">
+              Generate a report to evaluate clear identity, services, proof, process, FAQs, and structured data.
+            </div>
+          </article>
+
+          <article class="report-card wide">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Priority roadmap</p>
+                <h3>Highest-leverage build plan</h3>
+              </div>
+            </div>
+            <div id="roadmap" class="roadmap empty-copy">
+              Generate a report to see tasks grouped by this week, this month, and next quarter.
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
