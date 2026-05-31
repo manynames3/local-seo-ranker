@@ -11,8 +11,8 @@ Local SEO Ranker is built around the workflow a local SEO seller or operator nee
 ## Tech Stack
 
 - Frontend: HTML, CSS, vanilla JavaScript, client-side report rendering, JSON/CSV/text/print exports.
-- Runtime: Cloudflare Pages static assets plus Cloudflare Pages Functions.
-- Data: Cloudflare D1 for users, organizations, sessions, subscriptions, scan history, scan cache, geocode cache, usage events, and rate events.
+- Runtime: Cloudflare Pages static assets plus Cloudflare Pages Functions; AWS path with S3, CloudFront, API Gateway, Lambda, and DynamoDB.
+- Data: Cloudflare D1 for the Cloudflare deployment; DynamoDB single-table storage for the AWS deployment.
 - Provider integration: Scrappa Google Maps Advanced Search through server-side API calls.
 - Testing: Node.js built-in `node:test`, syntax checks with `node --check`.
 - Deployment: GitHub repository connected to Cloudflare Pages, production branch `main`, output directory `.`.
@@ -41,6 +41,7 @@ Local SEO Ranker is built around the workflow a local SEO seller or operator nee
 ## Architecture
 
 - Architecture overview: [docs/architecture.md](docs/architecture.md)
+- AWS deployment: [docs/aws-deployment.md](docs/aws-deployment.md)
 - Architecture decisions: [docs/adrs/README.md](docs/adrs/README.md)
 - Rank provider notes: [docs/rank-provider-use-cases.md](docs/rank-provider-use-cases.md)
 - Sales walkthrough: [docs/sales-script.md](docs/sales-script.md)
@@ -183,9 +184,16 @@ git diff --check
 |       |-- db.js
 |       |-- http.js
 |       `-- scan-utils.js
+|-- aws/
+|   `-- lambda/
+|-- infra/
+|   `-- aws/
+|-- .github/
+|   `-- workflows/
 |-- tests/scan-utils.test.js
 |-- docs/
 |   |-- architecture.md
+|   |-- aws-deployment.md
 |   |-- adrs/
 |   |-- sales-script.md
 |   `-- rank-provider-use-cases.md

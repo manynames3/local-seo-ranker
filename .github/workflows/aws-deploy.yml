@@ -1,0 +1,107 @@
+name: Deploy to AWS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_NAME: local-seo-ranker
+  STACK_NAME: local-seo-ranker-prod
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  deploy:
+    name: Deploy AWS stack
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_ROLE_ARN != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          find functions aws \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+          node --test
+
+      - name: Store provider secret
+        if: ${{ secrets.SCRAPPA_API_KEY != '' }}
+        run: |
+          aws ssm put-parameter \
+            --name "/${PROJECT_NAME}/scrappa-api-key" \
+            --type SecureString \
+            --value "${{ secrets.SCRAPPA_API_KEY }}" \
+            --overwrite
+
+      - name: Deploy CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name "${STACK_NAME}" \
+            --template-file infra/aws/app.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ProjectName="${PROJECT_NAME}" \
+              AppAccessCode="${{ secrets.APP_ACCESS_CODE }}" \
+              AdminEmails="${{ vars.ADMIN_EMAILS }}" \
+              DefaultMonthlyCredits="${{ vars.DEFAULT_MONTHLY_CREDITS || '2500' }}" \
+              MaxLiveGridPoints="${{ vars.MAX_LIVE_GRID_POINTS || '81' }}" \
+              EnableLiveScans="${{ vars.ENABLE_LIVE_SCANS || 'true' }}" \
+              ScrappaParameterName="/${PROJECT_NAME}/scrappa-api-key"
+
+      - name: Read stack outputs
+        id: outputs
+        run: |
+          outputs="$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].Outputs' --output json)"
+          echo "$outputs"
+          echo "bucket=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="SiteBucketName").OutputValue')" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="DistributionId").OutputValue')" >> "$GITHUB_OUTPUT"
+          echo "lambda_name=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="LambdaFunctionName").OutputValue')" >> "$GITHUB_OUTPUT"
+          echo "url=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl").OutputValue')" >> "$GITHUB_OUTPUT"
+
+      - name: Package Lambda
+        run: |
+          rm -f lambda.zip
+          zip -r lambda.zip aws/lambda functions/_lib/scan-utils.js
+
+      - name: Update Lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ steps.outputs.outputs.lambda_name }}" \
+            --zip-file fileb://lambda.zip
+          aws lambda wait function-updated \
+            --function-name "${{ steps.outputs.outputs.lambda_name }}"
+
+      - name: Upload static app
+        run: |
+          aws s3 sync . "s3://${{ steps.outputs.outputs.bucket }}" \
+            --delete \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "aws/*" \
+            --exclude "functions/*" \
+            --exclude "infra/*" \
+            --exclude "tests/*" \
+            --exclude "lambda.zip" \
+            --exclude "package.json" \
+            --exclude ".env.example"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.outputs.outputs.distribution_id }}" \
+            --paths "/*"
+
+      - name: Deployment URL
+        run: echo "Deployed to ${{ steps.outputs.outputs.url }}"

@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: GitHub Actions OIDC deployment role for Local SEO Ranker.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: local-seo-ranker
+  GitHubOrg:
+    Type: String
+    Default: manynames3
+  GitHubRepoPattern:
+    Type: String
+    Default: local-seo-ranker
+    Description: Use a specific repo name, or * to allow all repos in the GitHub org on main.
+  GitHubBranch:
+    Type: String
+    Default: main
+
+Conditions:
+  AllowAllRepos: !Equals [!Ref GitHubRepoPattern, "*"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-github-deploy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !If
+                  - AllowAllRepos
+                  - !Sub "repo:${GitHubOrg}/*:ref:refs/heads/${GitHubBranch}"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepoPattern}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: !Sub "${ProjectName}-github-deploy-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:UpdateStack
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}*/*"
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteObject
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketVersioning
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*/*"
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                  - lambda:CreateFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:RemovePermission
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:TagResource
+                  - dynamodb:UpdateTimeToLive
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+              - Effect: Allow
+                Action:
+                  - apigateway:DELETE
+                  - apigateway:GET
+                  - apigateway:PATCH
+                  - apigateway:POST
+                  - apigateway:PUT
+                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/*"
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateCloudFrontOriginAccessIdentity
+                  - cloudfront:CreateDistribution
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:TagResource
+                  - cloudfront:UpdateDistribution
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:CreatePolicy
+                  - iam:CreateRole
+                  - iam:DeleteRolePolicy
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:PutRolePolicy
+                  - iam:TagRole
+                  - iam:UpdateAssumeRolePolicy
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/*"
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn

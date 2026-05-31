@@ -2,7 +2,7 @@
 
 ## Overview
 
-Local SEO Ranker is a Cloudflare Pages application with a static frontend, Pages Functions backend, and Cloudflare D1 persistence. The frontend can generate strategy reports in the browser. Live Maps scans, geocoding, auth, credits, scan history, caching, rate limits, and admin metrics run through server-side Functions so provider credentials and account state never move into browser code.
+Local SEO Ranker has two deployment targets. The current production path runs on Cloudflare Pages with Pages Functions and Cloudflare D1. The AWS path runs the same product surface on S3, CloudFront, API Gateway, Lambda, and DynamoDB. The frontend can generate strategy reports in the browser. Live Maps scans, geocoding, auth, credits, scan history, caching, rate limits, and admin metrics run through server-side APIs so provider credentials and account state never move into browser code.
 
 ## C4-Style Container Diagram
 
@@ -24,6 +24,7 @@ flowchart LR
   scrappa["Scrappa Maps API<br/>Maps rank and location data"]
   github["GitHub repository<br/>main branch"]
   cloudflare["Cloudflare Pages deploy pipeline"]
+  aws["AWS stack<br/>S3, CloudFront, API Gateway, Lambda, DynamoDB"]
 
   user -->|"Open app"| staticSite
   staticSite -->|"Strategy report renders locally"| staticSite
@@ -41,6 +42,7 @@ flowchart LR
   geocodeApi -->|"Server-side API key request"| scrappa
   github -->|"Source deployment"| cloudflare
   cloudflare -->|"Publishes assets and Functions"| pages
+  github -->|"GitHub Actions OIDC deployment"| aws
 ```
 
 ## Runtime Flow
@@ -65,6 +67,7 @@ flowchart LR
 - Server runtime: Cloudflare Pages Functions under `functions/`.
 - Database: Cloudflare D1 binding named `DB`.
 - Live app: [https://local-seo-ranker.pages.dev](https://local-seo-ranker.pages.dev).
+- AWS alternative: GitHub Actions OIDC deploys `infra/aws/app.yml`, `aws/lambda/handler.mjs`, and static assets to S3/CloudFront/API Gateway/Lambda/DynamoDB.
 
 ## Key Constraints
 

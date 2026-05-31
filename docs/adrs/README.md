@@ -9,3 +9,4 @@ This folder captures the key architecture decisions behind Local SEO Ranker.
 - [ADR 0003: Normalize Live And Strategy Reports Into One Territory Model](0003-normalize-territory-model.md)
 - [ADR 0004: Require Explicit Live-Scan Safety Controls](0004-live-scan-safety-controls.md)
 - [ADR 0005: Use Cloudflare D1 For Product State](0005-use-d1-for-product-state.md)
+- [ADR 0006: Add AWS Deployment Target With GitHub OIDC](0006-add-aws-deployment-target.md)
