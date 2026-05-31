@@ -29,11 +29,11 @@ Open `http://localhost:4173`.
 
 ## Future Integrations
 
+- Live local rank checks with Scrappa as the first provider. See [rank provider use cases](docs/rank-provider-use-cases.md).
 - Google Search Console API
 - Google Business Profile API
-- SERP API
 - PageSpeed Insights API
 - Firecrawl, Crawl4AI, or site crawler
-- Ahrefs, Semrush, or DataForSEO
+- Ahrefs, Semrush, or DataForSEO for deeper SEO enrichment
 - Places API
 - Review and citation data source
