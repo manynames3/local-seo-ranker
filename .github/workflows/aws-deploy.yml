@@ -15,9 +15,23 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 jobs:
+  preflight:
+    name: AWS deploy preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configuration status
+        run: |
+          if [ -z "${{ vars.AWS_ROLE_ARN }}" ]; then
+            echo "AWS_ROLE_ARN is not configured yet; skipping AWS deployment."
+            echo "Deploy infra/aws/github-oidc-bootstrap.yml first, then set the RoleArn output as the AWS_ROLE_ARN repository variable."
+          else
+            echo "AWS_ROLE_ARN is configured; deployment job can run."
+          fi
+
   deploy:
     name: Deploy AWS stack
     runs-on: ubuntu-latest
+    needs: preflight
     if: ${{ vars.AWS_ROLE_ARN != '' }}
 
     steps:
@@ -37,13 +51,18 @@ jobs:
           node --test
 
       - name: Store provider secret
-        if: ${{ secrets.SCRAPPA_API_KEY != '' }}
+        env:
+          SCRAPPA_API_KEY: ${{ secrets.SCRAPPA_API_KEY }}
         run: |
-          aws ssm put-parameter \
-            --name "/${PROJECT_NAME}/scrappa-api-key" \
-            --type SecureString \
-            --value "${{ secrets.SCRAPPA_API_KEY }}" \
-            --overwrite
+          if [ -n "$SCRAPPA_API_KEY" ]; then
+            aws ssm put-parameter \
+              --name "/${PROJECT_NAME}/scrappa-api-key" \
+              --type SecureString \
+              --value "$SCRAPPA_API_KEY" \
+              --overwrite
+          else
+            echo "SCRAPPA_API_KEY is not configured; live scans will stay unavailable until the secret is added."
+          fi
 
       - name: Deploy CloudFormation
         run: |
