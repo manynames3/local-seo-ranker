@@ -514,8 +514,8 @@ function deterministicNoise(input, x, y) {
 }
 
 function buildTerritory(input, scores, competitors) {
-  const size = 13;
-  const center = Math.floor(size / 2);
+  const size = 14;
+  const center = (size - 1) / 2;
   const cells = [];
   const ranks = [];
   const userStrength =
@@ -525,25 +525,20 @@ function buildTerritory(input, scores, competitors) {
       scores.trustSignals +
       scores.gbpReadiness) /
     5;
-  const baseRank = clamp(12 - userStrength / 10 + competitors.length * 0.75, 2, 18);
+  const baseRank = clamp(8 - userStrength / 12 + competitors.length * 0.65, 1, 16);
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const dx = x - center;
       const dy = y - center;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance > 6.25) {
-        cells.push({ x, y, empty: true });
-        continue;
-      }
-
-      const competitorPocket = x < center - 2 && y > center + 1 ? 3.8 : 0;
-      const localCoreLift = distance < 2.2 ? -3.2 : 0;
-      const neighborhoodDrag = distance > 4.8 ? 1.6 : 0;
+      const competitorPocket = x < center - 2 && y > center + 1 ? 4.2 : 0;
+      const localCoreLift = distance < 2.3 ? -2.6 : 0;
+      const neighborhoodDrag = distance > 5.2 ? 1.7 : 0;
       const rank = clamp(
         baseRank +
-          distance * 0.68 +
-          deterministicNoise(input, x, y) * 0.42 +
+          distance * 0.55 +
+          deterministicNoise(input, x, y) * 0.38 +
           competitorPocket +
           localCoreLift +
           neighborhoodDrag,
@@ -555,7 +550,7 @@ function buildTerritory(input, scores, competitors) {
         x,
         y,
         rank,
-        center: x === center && y === center,
+        center: x === Math.floor(center) && y === Math.floor(center),
         tone: rankTone(rank)
       });
     }
@@ -567,7 +562,8 @@ function buildTerritory(input, scores, competitors) {
   const averageRank = clamp(ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length, 1, 20);
   const coverage = clamp((wins / ranks.length) * 100);
   const contested = clamp(((nearWins + weak) / ranks.length) * 100);
-  const radius = `${Math.max(4, 5 + competitors.length * 2)} mi`;
+  const radiusMiles = Math.max(4, 5 + competitors.length * 2);
+  const radius = `${radiusMiles} mi`;
 
   return {
     size,
@@ -578,6 +574,9 @@ function buildTerritory(input, scores, competitors) {
     weak,
     wins,
     radius,
+    rankPoints: ranks.length,
+    coverageArea: `${Math.round(Math.PI * radiusMiles * radiusMiles)} sq mi`,
+    pointSpacing: "2 km",
     market: `${input.city || "Target city"}, ${input.state || "State"}`,
     gridSize: `${size} x ${size}`,
     dataStatus: "Estimated grid until live Maps/SERP rank checks are connected."
@@ -656,30 +655,57 @@ function renderReport(report) {
 
 function renderTerritory(report) {
   const territory = report.territory;
+  const generatedDate = new Date(report.generatedAt).toLocaleDateString();
   territoryMap.className = "territory-map";
   territoryMap.innerHTML = `
-    <div class="territory-shell">
-      <div>
-        <div class="map-surface" aria-label="Estimated local rank grid for ${escapeHtml(territory.market)}">
-          <div class="territory-grid" style="grid-template-columns: repeat(${territory.size}, minmax(17px, 1fr));">
-            ${territory.cells
-              .map((cell) =>
-                cell.empty
-                  ? `<span class="rank-cell empty"></span>`
-                  : `<span class="rank-cell ${cell.tone}${cell.center ? " center" : ""}" title="Estimated rank ${cell.rank}">${cell.rank}</span>`
-              )
-              .join("")}
+    <div class="territory-shell ranking-shell">
+      <div class="ranking-map-frame" aria-label="Estimated local rank grid for ${escapeHtml(territory.market)}">
+        <aside class="grid-details-panel">
+          <div class="grid-panel-title">Grid Details</div>
+          <dl>
+            <div><dt>Created date</dt><dd>${generatedDate}</dd></div>
+            <div><dt>Business name</dt><dd>${escapeHtml(report.input.businessName || domainFromUrl(report.input.websiteUrl))}</dd></div>
+            <div><dt>Keyword</dt><dd>${escapeHtml(report.input.keyword)}</dd></div>
+            <div><dt>Center point</dt><dd>${escapeHtml(territory.market)}</dd></div>
+            <div><dt>Grid size</dt><dd>${territory.gridSize}</dd></div>
+            <div><dt>Distance between points</dt><dd>${territory.pointSpacing}</dd></div>
+            <div><dt>Radius</dt><dd>${territory.radius}</dd></div>
+            <div><dt>Coverage</dt><dd>${territory.coverageArea}</dd></div>
+          </dl>
+          <div class="panel-stats">
+            <span><b>${territory.averageRank}</b><small>Average rank</small></span>
+            <span><b>${territory.rankPoints}/${territory.size * territory.size}</b><small>Rank points</small></span>
           </div>
-        </div>
-        <div class="map-legend" aria-label="Rank grid legend">
-          <span>1-3: local pack</span>
-          <span>4-6: near win</span>
-          <span>7-10: contested</span>
-          <span>11+: weak zone</span>
+          <button type="button" disabled>Ranking details</button>
+          <p>Estimated local ranking view</p>
+        </aside>
+
+        <span class="map-label map-label-main">${escapeHtml(report.input.city || "Target city")}</span>
+        <span class="map-label map-label-north">Market north</span>
+        <span class="map-label map-label-east">Service edge</span>
+        <span class="map-label map-label-south">Weak pocket</span>
+
+        <div class="rank-coverage" aria-hidden="true"></div>
+        <div class="rank-heat rank-heat-a" aria-hidden="true"></div>
+        <div class="rank-heat rank-heat-b" aria-hidden="true"></div>
+        <div class="territory-grid local-ranking-grid" style="grid-template-columns: repeat(${territory.size}, minmax(18px, 1fr));">
+          ${territory.cells
+            .map(
+              (cell) =>
+                `<span class="rank-cell ${cell.tone}${cell.center ? " center" : ""}" title="Estimated rank ${cell.rank}">${cell.rank}</span>`
+            )
+            .join("")}
         </div>
       </div>
-      <div class="territory-insights">
-        <h4>${escapeHtml(territory.market)}</h4>
+
+      <div class="map-legend" aria-label="Rank grid legend">
+        <span>1-3: local pack</span>
+        <span>4-6: near win</span>
+        <span>7-10: contested</span>
+        <span>11+: weak zone</span>
+      </div>
+
+      <div class="territory-insights grid-summary-row">
         <div class="insight-row">
           <span>Average grid rank</span>
           <strong>${territory.averageRank}</strong>
