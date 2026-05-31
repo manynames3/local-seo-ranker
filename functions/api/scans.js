@@ -183,7 +183,7 @@ async function runScrappaGrid(input, apiKey) {
     provider: "scrappa",
     generatedAt: new Date().toISOString(),
     startedAt,
-    modelStatus: "Live Maps rank data. Rank cells are matched against returned Maps results.",
+    modelStatus: "Observed live Maps rank data. Rank cells were matched against provider-returned Maps results.",
     requestCostCredits: points.length,
     warnings: [],
     territory: buildTerritoryFromRankPoints({ input, points: results, provider: "scrappa" })

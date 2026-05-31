@@ -53,17 +53,17 @@
           <div class="hero-proof" aria-label="Current model status">
             <span id="model-kicker">Workspace status</span>
             <strong id="model-state">Ready</strong>
-            <small id="model-note">Sign in to run live Maps scans or generate planning reports instantly.</small>
+            <small id="model-note">Strategy reports are clearly labeled. Live scans use provider-backed Maps rank checks.</small>
           </div>
         </section>
 
         <section class="account-panel" aria-label="Account and usage">
           <div class="account-copy">
             <p class="eyebrow">Account</p>
-            <h2>Secure workspace access and scan credits.</h2>
+            <h2>Open your workspace and start the market read.</h2>
             <p>
-              Live rank checks are tied to your account, saved to scan history, and protected by monthly credits,
-              caching, and rate limits.
+              Returning users can continue with email. Access codes are only needed when a private workspace
+              requires approval for live scan credits.
             </p>
           </div>
 
@@ -77,10 +77,11 @@
               <input id="login-name" name="name" type="text" autocomplete="name" placeholder="Your name" />
             </label>
             <label>
-              Invite code
-              <input id="login-code" name="accessCode" type="password" autocomplete="one-time-code" placeholder="Required after first account" />
+              Access code
+              <input id="login-code" name="accessCode" type="password" autocomplete="one-time-code" placeholder="If issued" />
             </label>
-            <button class="primary-action" id="login-button" type="submit">Sign in</button>
+            <button class="primary-action" id="login-button" type="submit">Enter workspace</button>
+            <p class="login-note">No card is required to create planning reports. Live rank checks use account credits.</p>
           </form>
 
           <div id="account-card" class="account-card is-hidden">
@@ -173,6 +174,17 @@
             <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 credits for a live scan. Current account cap is 81 cells per scan.</p>
           </fieldset>
 
+          <aside class="evidence-guide" aria-label="Evidence source guide">
+            <div>
+              <span class="evidence-chip estimate">Strategy estimate</span>
+              <p>Uses the inputs on this page to model opportunity, likely weak pockets, and build priorities. No provider request is made.</p>
+            </div>
+            <div>
+              <span class="evidence-chip live">Live Maps scan</span>
+              <p>Uses server-side provider calls at each grid point. Rank cells become observed evidence and are saved to history.</p>
+            </div>
+          </aside>
+
           <div class="competitor-fields" aria-label="Competitor URLs">
             <span>Competitors</span>
             <input id="competitor1" name="competitor1" type="url" placeholder="Competitor 1 URL" />
@@ -191,11 +203,11 @@
           </label>
 
           <p id="model-disclosure" class="model-disclosure">
-            Planning reports run instantly. Live Maps scans require sign-in, center coordinates, and available credits.
+            Strategy estimates are planning models. Live Maps scans require sign-in, center coordinates, available credits, and provider configuration.
           </p>
 
           <div id="scan-status" class="scan-status" role="status">
-            Ready. Sign in to run live Maps scans, or generate a strategy report without using credits.
+            Ready. Generate a strategy estimate without credits, or sign in to run a live Maps scan.
           </div>
 
           <div class="form-actions">
@@ -210,7 +222,7 @@
             <h2 id="about-product-title">Built for local-business rank discovery across niches.</h2>
             <p>
               Use it for plumbers, electricians, photographers, restaurants, clinics, home services, and other local intent keywords.
-              Strategy mode creates a directional market model; live mode captures Maps rank evidence through the protected scan system.
+              Every report states whether the grid is a strategy estimate or observed live Maps evidence.
             </p>
           </div>
         </section>
@@ -224,6 +236,40 @@
               </div>
             </div>
             <div id="scan-history" class="list-stack empty-copy">Sign in to view saved scans for this workspace.</div>
+          </article>
+
+          <article class="report-card">
+            <div class="card-header compact">
+              <div>
+                <p class="eyebrow">Monitoring</p>
+                <h3>Scheduled scans and alerts</h3>
+              </div>
+            </div>
+            <form id="schedule-form" class="schedule-form">
+              <label>
+                Frequency
+                <select id="schedule-frequency" name="frequency">
+                  <option value="weekly" selected>Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="daily">Daily</option>
+                </select>
+              </label>
+              <label>
+                Alert if average rank is
+                <select id="schedule-threshold" name="threshold">
+                  <option value="7" selected>Worse than 7</option>
+                  <option value="10">Worse than 10</option>
+                  <option value="3">Outside local pack</option>
+                </select>
+              </label>
+              <label>
+                Alert email
+                <input id="schedule-email" name="alertEmail" type="email" placeholder="you@company.com" />
+              </label>
+              <button class="ghost-action" id="save-schedule" type="submit">Start monitoring</button>
+              <p class="schedule-note">Uses the current business, keyword, city, grid, and center. Each live execution uses credits at run time.</p>
+            </form>
+            <div id="schedule-list" class="list-stack empty-copy">Sign in to view scheduled scans for this workspace.</div>
           </article>
 
           <article id="admin-panel" class="report-card is-hidden">

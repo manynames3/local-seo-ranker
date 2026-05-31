@@ -12,10 +12,11 @@ export async function onRequestGet({ request, env = {} }) {
     return jsonResponse(request, env, { error: "Admin access required.", code: "admin_required" }, 403);
   }
 
-  const [users, organizations, scans, usage, recentUsers, recentScans, subscriptions] = await Promise.all([
+  const [users, organizations, scans, schedules, usage, recentUsers, recentScans, subscriptions] = await Promise.all([
     firstNumber(env.DB, "SELECT COUNT(*) AS count FROM users"),
     firstNumber(env.DB, "SELECT COUNT(*) AS count FROM organizations"),
     firstNumber(env.DB, "SELECT COUNT(*) AS count FROM scans"),
+    firstNumber(env.DB, "SELECT COUNT(*) AS count FROM scan_schedules"),
     firstNumber(env.DB, "SELECT COALESCE(SUM(credits), 0) AS count FROM usage_events"),
     env.DB.prepare("SELECT email, name, role, created_at, last_seen_at FROM users ORDER BY created_at DESC LIMIT 8").all(),
     env.DB
@@ -44,6 +45,7 @@ export async function onRequestGet({ request, env = {} }) {
       users,
       organizations,
       scans,
+      schedules,
       creditsUsed: usage
     },
     recentUsers: recentUsers.results || [],

@@ -35,6 +35,8 @@ export async function handler(event) {
     if (method === "POST" && path === "/api/auth/logout") return logout(event);
     if (method === "POST" && path === "/api/geocode") return geocode(event);
     if (method === "GET" && path === "/api/history") return history(event);
+    if (method === "GET" && path === "/api/schedules") return schedules(event);
+    if (method === "POST" && path === "/api/schedules") return saveSchedule(event);
     if (method === "GET" && path === "/api/admin/overview") return adminOverview(event);
     if (method === "GET" && path === "/api/scans") return scansMetadata(event);
     if (method === "POST" && path === "/api/scans") return scans(event);
@@ -61,7 +63,8 @@ async function login(event) {
   const configuredCode = clean(process.env.APP_ACCESS_CODE);
   const openSignup = String(process.env.ALLOW_OPEN_SIGNUPS || "").toLowerCase() === "true";
   const firstUserBootstrap = !configuredCode && (await countUsers()) === 0;
-  if (!openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
+  const existingUser = await getItem(`USER#${email}`, "PROFILE");
+  if (!existingUser && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
     return jsonResponse(event, { error: "Access code is required.", code: "invalid_access_code" }, 401);
   }
 
@@ -224,6 +227,66 @@ async function history(event) {
   });
 }
 
+async function schedules(event) {
+  const auth = await requireAccount(event);
+  if (auth.response) return auth.response;
+  const limit = Math.max(1, Math.min(20, Number.parseInt(new URL(event.rawQueryString ? `https://x/?${event.rawQueryString}` : "https://x/").searchParams.get("limit") || "10", 10)));
+  const rows = await queryOrg(auth.account.org.id, "SCHEDULE#", false, limit);
+  return jsonResponse(event, {
+    ok: true,
+    schedules: rows.map(scheduleResponse)
+  });
+}
+
+async function saveSchedule(event) {
+  const auth = await requireAccount(event);
+  if (auth.response) return auth.response;
+
+  const body = readJson(event);
+  if (!body) return jsonResponse(event, { error: "Request body must be valid JSON.", code: "invalid_json" }, 400);
+
+  const input = normalizeScanInput(body.input || body);
+  const missing = ["businessName", "websiteUrl", "keyword", "city", "state"].filter((key) => !input[key]);
+  if (missing.length) return jsonResponse(event, { error: "Missing required fields.", code: "missing_fields", missing }, 400);
+  if (!hasValidCoordinates(input)) return jsonResponse(event, { error: "Scheduled live scans require center latitude and longitude.", code: "missing_center_coordinates" }, 422);
+
+  const frequency = new Set(["daily", "weekly", "monthly"]).has(body.frequency) ? body.frequency : "weekly";
+  const now = nowIso();
+  const schedule = {
+    PK: `ORG#${auth.account.org.id}`,
+    SK: `SCHEDULE#${now}#${randomUUID()}`,
+    type: "schedule",
+    id: randomUUID(),
+    org_id: auth.account.org.id,
+    user_id: auth.account.user.id,
+    business_name: input.businessName,
+    website_url: input.websiteUrl,
+    keyword: input.keyword,
+    city: input.city,
+    state: input.state,
+    grid_size: input.gridSize,
+    center_lat: input.centerLat,
+    center_lon: input.centerLon,
+    point_spacing_km: input.pointSpacingKm,
+    frequency,
+    alert_threshold: normalizeThreshold(body.threshold),
+    alert_email: clean(body.alertEmail || auth.account.user.email),
+    status: "active",
+    next_run_at: scheduleNextRunAt(frequency),
+    created_at: now,
+    updated_at: now,
+    request_json: JSON.stringify({ ...input, scanMode: "live" })
+  };
+  await putItem(schedule);
+  const rows = await queryOrg(auth.account.org.id, "SCHEDULE#", false, 6);
+  return jsonResponse(event, {
+    ok: true,
+    schedule: scheduleResponse(schedule),
+    schedules: rows.map(scheduleResponse),
+    account: accountResponse(auth.account, auth.subscription)
+  });
+}
+
 async function adminOverview(event) {
   const auth = await requireAccount(event);
   if (auth.response) return auth.response;
@@ -237,6 +300,7 @@ async function adminOverview(event) {
       users: items.filter((item) => item.type === "user").length,
       organizations: items.filter((item) => item.type === "organization").length,
       scans: items.filter((item) => item.type === "scan").length,
+      schedules: items.filter((item) => item.type === "schedule").length,
       creditsUsed: items.filter((item) => item.type === "usage").reduce((sum, item) => sum + Number(item.credits || 0), 0)
     },
     recentUsers: items.filter((item) => item.type === "user").sort(sortByCreatedDesc).slice(0, 8),
@@ -475,7 +539,7 @@ async function runScrappaGrid(input, apiKey) {
     provider: "scrappa",
     generatedAt: nowIso(),
     startedAt,
-    modelStatus: "Live Maps rank data. Rank cells are matched against returned Maps results.",
+    modelStatus: "Observed live Maps rank data. Rank cells were matched against provider-returned Maps results.",
     requestCostCredits: points.length,
     warnings: [],
     territory: buildTerritoryFromRankPoints({ input, points: results, provider: "scrappa" })
@@ -623,6 +687,36 @@ function statusForUnavailable(reason) {
     missing_center_coordinates: "Live Maps scans require a center latitude and longitude."
   };
   return statuses[reason] || "Live scan unavailable.";
+}
+
+function scheduleResponse(row) {
+  return {
+    id: row.id,
+    businessName: row.business_name,
+    websiteUrl: row.website_url,
+    keyword: row.keyword,
+    city: row.city,
+    state: row.state,
+    gridSize: `${row.grid_size} x ${row.grid_size}`,
+    frequency: row.frequency,
+    threshold: row.alert_threshold,
+    alertEmail: row.alert_email || "",
+    status: row.status,
+    nextRunAt: row.next_run_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function normalizeThreshold(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(3, Math.min(20, parsed)) : 7;
+}
+
+function scheduleNextRunAt(frequency) {
+  if (frequency === "daily") return addDaysIso(1);
+  if (frequency === "monthly") return addDaysIso(30);
+  return addDaysIso(7);
 }
 
 function buildScanCacheKey(input) {

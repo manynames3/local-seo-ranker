@@ -10,6 +10,10 @@ const creditBalance = document.querySelector("#credit-balance");
 const creditPeriod = document.querySelector("#credit-period");
 const findCenterButton = document.querySelector("#find-center");
 const scanHistory = document.querySelector("#scan-history");
+const scheduleForm = document.querySelector("#schedule-form");
+const scheduleList = document.querySelector("#schedule-list");
+const scheduleButton = document.querySelector("#save-schedule");
+const scheduleEmail = document.querySelector("#schedule-email");
 const adminPanel = document.querySelector("#admin-panel");
 const adminOverview = document.querySelector("#admin-overview");
 const scorecards = document.querySelector("#scorecards");
@@ -44,7 +48,7 @@ let currentReport = null;
 let isGenerating = false;
 let currentAccount = null;
 
-const estimatedModelStatus = "Strategy estimate. No live Google Maps/SERP data has been requested for this report.";
+const estimatedModelStatus = "Strategy estimate only. No live Google Maps/SERP request was made; use live mode before presenting rank cells as observed evidence.";
 
 const scoreDefinitions = [
   ["topicalAuthority", "Topical Authority Score", "Depth of service and supporting content around the target keyword."],
@@ -220,6 +224,10 @@ function setAccount(account) {
       scanHistory.className = "list-stack empty-copy";
       scanHistory.textContent = "Sign in to view saved scans for this workspace.";
     }
+    if (scheduleList) {
+      scheduleList.className = "list-stack empty-copy";
+      scheduleList.textContent = "Sign in to view scheduled scans for this workspace.";
+    }
     adminPanel?.classList.add("is-hidden");
     return;
   }
@@ -229,7 +237,9 @@ function setAccount(account) {
   if (accountOrg) accountOrg.textContent = currentAccount.organization?.name || "Workspace";
   if (creditBalance) creditBalance.textContent = `${credits.remaining ?? 0}/${credits.monthlyLimit ?? 0}`;
   if (creditPeriod) creditPeriod.textContent = credits.periodEnd ? `Resets ${new Date(credits.periodEnd).toLocaleDateString()}` : "Current cycle";
+  if (scheduleEmail && !scheduleEmail.value) scheduleEmail.value = currentAccount.user?.email || "";
   loadHistory();
+  loadSchedules();
   if (currentAccount.admin) {
     adminPanel?.classList.remove("is-hidden");
     loadAdminOverview();
@@ -284,6 +294,44 @@ function renderHistory(scans) {
     .join("");
 }
 
+async function loadSchedules() {
+  if (!currentAccount || !scheduleList) return;
+  try {
+    const payload = await apiFetch("/api/schedules?limit=6");
+    renderSchedules(payload.schedules || []);
+  } catch (error) {
+    scheduleList.className = "list-stack empty-copy";
+    scheduleList.textContent = error.message || "Could not load scheduled scans.";
+  }
+}
+
+function renderSchedules(schedules) {
+  if (!scheduleList) return;
+  if (!schedules.length) {
+    scheduleList.className = "list-stack empty-copy";
+    scheduleList.textContent = "No monitoring rules yet. Use the current market setup to track rank changes over time.";
+    return;
+  }
+  scheduleList.className = "list-stack history-list";
+  scheduleList.innerHTML = schedules
+    .map(
+      (schedule) => `
+        <div class="history-item">
+          <div>
+            <strong>${escapeHtml(schedule.businessName)}</strong>
+            <p>${escapeHtml(schedule.keyword)} in ${escapeHtml(schedule.city)}, ${escapeHtml(schedule.state)} · ${escapeHtml(schedule.frequency)} · ${escapeHtml(schedule.gridSize)}</p>
+            <small class="schedule-meta">Alert when average rank is worse than ${escapeHtml(schedule.threshold)} · ${escapeHtml(schedule.alertEmail || "No alert email")}</small>
+          </div>
+          <div>
+            <span class="mini-chip">${escapeHtml(schedule.status)}</span>
+            <small>Next ${new Date(schedule.nextRunAt).toLocaleDateString()}</small>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+}
+
 async function loadAdminOverview() {
   if (!currentAccount?.admin || !adminOverview) return;
   try {
@@ -294,6 +342,7 @@ async function loadAdminOverview() {
       <div class="pulse-metric"><span>Users</span><strong>${totals.users ?? 0}</strong><p>Total registered accounts.</p></div>
       <div class="pulse-metric"><span>Workspaces</span><strong>${totals.organizations ?? 0}</strong><p>Active customer workspaces.</p></div>
       <div class="pulse-metric"><span>Saved scans</span><strong>${totals.scans ?? 0}</strong><p>Scan records stored in history.</p></div>
+      <div class="pulse-metric"><span>Schedules</span><strong>${totals.schedules ?? 0}</strong><p>Recurring scan rules saved.</p></div>
       <div class="pulse-metric"><span>Credits used</span><strong>${totals.creditsUsed ?? 0}</strong><p>Live lookup credits consumed.</p></div>
     `;
   } catch (error) {
@@ -739,7 +788,7 @@ function buildTerritory(input, scores, competitors) {
     pointSpacing: `${input.pointSpacingKm || 2} km`,
     market: `${input.city || "Target city"}, ${input.state || "State"}`,
     gridSize: `${size} x ${size}`,
-    dataStatus: "Estimated grid until live Maps/SERP rank checks are connected.",
+    dataStatus: "Strategy estimate only. Run a live Maps scan to replace modeled cells with observed rank evidence.",
     provider: "client-estimate"
   };
 }
@@ -808,8 +857,8 @@ function renderReport(report) {
   const live = report.scan?.mode === "live";
   reportTitle.textContent = `${input.city}, ${input.state}: ${input.keyword} territory`;
   reportSubtitle.textContent = live
-    ? `${input.businessName || domainFromUrl(input.websiteUrl)} is mapped from live Maps rank checks and interpreted against topical, entity, service-depth, internal link, GBP, and AI-readable trust signals.`
-    : `${input.businessName || domainFromUrl(input.websiteUrl)} is modeled against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust. Run a live Maps scan before presenting the grid as observed ranking evidence.`;
+    ? `${input.businessName || domainFromUrl(input.websiteUrl)} is mapped from observed provider-backed Maps rank checks and interpreted against topical, entity, service-depth, internal link, GBP, and AI-readable trust signals.`
+    : `${input.businessName || domainFromUrl(input.websiteUrl)} is modeled from your inputs for planning. The grid is not observed ranking evidence until a live Maps scan is run.`;
   totalScore.textContent = scores.totalOpportunity;
   renderTerritory(report);
   renderMarketPulse(report);
@@ -828,19 +877,21 @@ function renderTerritory(report) {
   const territory = report.territory;
   const generatedDate = new Date(report.generatedAt).toLocaleDateString();
   const live = report.scan?.mode === "live";
-  const badge = live ? "Live Maps" : "Strategy estimate";
+  const badge = live ? "Observed live data" : "Modeled estimate";
   const rankWord = live ? "Live" : "Modeled";
-  const surfaceTitle = live ? "Live rank grid" : "Strategy territory grid";
+  const surfaceTitle = live ? "Live Maps rank grid" : "Strategy territory grid";
   const surfaceNote = live
-    ? "Live Maps rank cells. This is a grid visualization, not an embedded map tile."
-    : "Modeled planning view. This is not a live Google Maps screenshot.";
+    ? "Rank dots are observed provider results. Map tiles are geographic context, not the rank data source."
+    : "Rank dots are a planning model. Map tiles are geographic context only.";
   const providerNote = live
-    ? `${territory.rankPoints} live rank checks. Matched cells show observed rank; 20+ means not found in returned results.`
-    : "Live rank evidence has not been requested for this report.";
+    ? `${territory.rankPoints} live provider checks. Matched cells show observed rank; 20+ means not found in returned results.`
+    : "No provider request was made for this grid.";
+  const tileLayer = renderMapTileLayer(report.input);
   territoryMap.className = "territory-map";
   territoryMap.innerHTML = `
     <div class="territory-shell ranking-shell">
       <div class="ranking-map-frame" aria-label="${live ? "Live" : "Estimated"} local rank grid for ${escapeHtml(territory.market)}">
+        ${tileLayer}
         <aside class="grid-details-panel">
           <div class="grid-panel-title">Grid Details</div>
           <dl>
@@ -853,6 +904,7 @@ function renderTerritory(report) {
             <div><dt>Distance between points</dt><dd>${territory.pointSpacing}</dd></div>
             <div><dt>Radius</dt><dd>${territory.radius}</dd></div>
             <div><dt>Coverage</dt><dd>${territory.coverageArea}</dd></div>
+            <div><dt>Data source</dt><dd>${live ? "Live provider" : "Strategy model"}</dd></div>
           </dl>
           <div class="panel-stats">
             <span><b>${territory.averageRank ?? "20+"}</b><small>Average rank</small></span>
@@ -866,6 +918,11 @@ function renderTerritory(report) {
           <span>${escapeHtml(surfaceTitle)}</span>
           <strong>${escapeHtml(territory.market)}</strong>
           <small>${escapeHtml(surfaceNote)}</small>
+        </div>
+
+        <div class="data-source-banner ${live ? "is-live" : ""}">
+          <strong>${live ? "Observed rank evidence" : "Modeled planning estimate"}</strong>
+          <span>${live ? "Live scan cells came from server-side Maps provider calls." : "No live Google Maps/SERP request was made for these cells."}</span>
         </div>
 
         <div class="rank-coverage" aria-hidden="true"></div>
@@ -905,13 +962,51 @@ function renderTerritory(report) {
           <p>Likely neighborhoods or service modifiers where stronger competitors can win.</p>
         </div>
         <div class="insight-row">
-          <span>Model status</span>
+          <span>Evidence source</span>
           <strong>${territory.gridSize}</strong>
           <p>${escapeHtml(report.modelStatus)}</p>
         </div>
       </div>
     </div>
   `;
+}
+
+function renderMapTileLayer(input) {
+  if (!Number.isFinite(input.centerLat) || !Number.isFinite(input.centerLon)) {
+    return `<div class="synthetic-map-layer" aria-hidden="true"></div>`;
+  }
+  const zoom = 12;
+  const center = latLonToTile(input.centerLat, input.centerLon, zoom);
+  const tiles = [];
+  for (let row = -1; row <= 1; row += 1) {
+    for (let col = -1; col <= 1; col += 1) {
+      const x = wrapTile(center.x + col, zoom);
+      const y = clampTile(center.y + row, zoom);
+      tiles.push(`<img class="osm-tile" alt="" src="https://tile.openstreetmap.org/${zoom}/${x}/${y}.png" loading="lazy" />`);
+    }
+  }
+  return `
+    <div class="osm-tile-layer" aria-hidden="true">${tiles.join("")}</div>
+    <span class="map-attribution">Map tiles: OpenStreetMap contributors</span>
+  `;
+}
+
+function latLonToTile(lat, lon, zoom) {
+  const latRad = (lat * Math.PI) / 180;
+  const scale = 2 ** zoom;
+  const x = Math.floor(((lon + 180) / 360) * scale);
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale);
+  return { x, y };
+}
+
+function wrapTile(x, zoom) {
+  const scale = 2 ** zoom;
+  return ((x % scale) + scale) % scale;
+}
+
+function clampTile(y, zoom) {
+  const scale = 2 ** zoom;
+  return Math.max(0, Math.min(scale - 1, y));
 }
 
 function renderMarketPulse(report) {
@@ -1195,7 +1290,7 @@ function setScanStatus(message, tone = "neutral") {
   scanStatus.className = `scan-status${tone === "live" ? " is-live" : tone === "warning" ? " is-warning" : tone === "error" ? " is-error" : ""}`;
 }
 
-function setModelStatusUI({ kicker = "Workspace status", state = "Ready", note = "Sign in to run live Maps scans or generate planning reports instantly." } = {}) {
+function setModelStatusUI({ kicker = "Workspace status", state = "Ready", note = "Strategy reports are labeled separately from live Maps evidence." } = {}) {
   if (modelKicker) modelKicker.textContent = kicker;
   if (modelState) modelState.textContent = state;
   if (modelNote) modelNote.textContent = note;
@@ -1389,7 +1484,7 @@ form.addEventListener("submit", async (event) => {
     if (input.scanMode === "live") {
       if (!currentAccount) {
         setScanStatus("Sign in before running a live Maps scan.", "error");
-        setModelStatusUI({ kicker: "Action needed", state: "Sign in", note: "Live rank checks are tied to account credits and saved history." });
+        setModelStatusUI({ kicker: "Action needed", state: "Sign in", note: "Live rank checks are tied to account credits, coordinates, and saved history." });
         showToast("Sign in before running a live Maps scan.");
         return;
       }
@@ -1400,7 +1495,7 @@ form.addEventListener("submit", async (event) => {
         if (resultMode === "live") {
           const charged = report.scan.chargedCredits ?? report.scan.requestCostCredits;
           setScanStatus(`Live Maps scan complete. ${charged} credits used.`, "live");
-          setModelStatusUI({ kicker: "Live data", state: "Maps scan", note: `${charged} credits used. Results saved to history.` });
+          setModelStatusUI({ kicker: "Observed evidence", state: "Live Maps scan", note: `${charged} credits used. Provider-backed results saved to history.` });
           showToast("Live Maps report generated.");
           loadHistory();
         } else {
@@ -1418,7 +1513,7 @@ form.addEventListener("submit", async (event) => {
       }
     } else {
       setScanStatus(estimatedModelStatus, "neutral");
-      setModelStatusUI({ kicker: "Strategy model", state: "Ready", note: "Planning report generated without using live scan credits." });
+      setModelStatusUI({ kicker: "Strategy estimate", state: "Not live data", note: "Planning report generated without using live scan credits or provider calls." });
       showToast("Strategy report generated.");
     }
 
@@ -1477,11 +1572,14 @@ loginForm?.addEventListener("submit", async (event) => {
       })
     });
     setAccount(payload.account);
-    setModelStatusUI({ kicker: "Workspace", state: "Signed in", note: "Live Maps scans are available when credits and coordinates are ready." });
+    setModelStatusUI({ kicker: "Workspace", state: "Signed in", note: "Live Maps scans are available when credits, provider configuration, and coordinates are ready." });
     setScanStatus("Signed in. Live Maps scans will be saved to this workspace.", "live");
     showToast("Signed in.");
   } catch (error) {
-    const message = error.code === "invalid_access_code" ? "Enter a valid invite code for this workspace." : error.message || "Could not sign in.";
+    const message =
+      error.code === "invalid_access_code"
+        ? "This workspace requires an access code for new accounts. Returning users can continue with email."
+        : error.message || "Could not enter workspace.";
     setScanStatus(message, "error");
     showToast(message);
   } finally {
@@ -1545,6 +1643,52 @@ findCenterButton?.addEventListener("click", async () => {
   }
 });
 
+scheduleForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentAccount) {
+    setScanStatus("Sign in before saving scheduled scans.", "error");
+    showToast("Sign in before saving scheduled scans.");
+    return;
+  }
+
+  const input = readInput();
+  if (!input.businessName || !input.websiteUrl || !input.keyword || !input.city || !input.state) {
+    setScanStatus("Add business, website, keyword, city, and state before saving a schedule.", "error");
+    showToast("Complete the market fields first.");
+    return;
+  }
+  if (!Number.isFinite(input.centerLat) || !Number.isFinite(input.centerLon)) {
+    setScanStatus("Scheduled live scans need a center point. Use Find center or enter coordinates.", "error");
+    showToast("Add a map center before scheduling.");
+    return;
+  }
+
+  const formData = new FormData(scheduleForm);
+  const payload = {
+    input: { ...input, scanMode: "live" },
+    frequency: normalizeText(formData.get("frequency")) || "weekly",
+    threshold: Number.parseInt(formData.get("threshold"), 10) || 7,
+    alertEmail: normalizeText(formData.get("alertEmail")) || currentAccount.user?.email || ""
+  };
+
+  if (scheduleButton) scheduleButton.disabled = true;
+  try {
+    const response = await apiFetch("/api/schedules", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    renderSchedules(response.schedules || [response.schedule].filter(Boolean));
+    setScanStatus("Monitoring rule saved. Alert settings are tied to this workspace.", "live");
+    showToast("Monitoring started.");
+  } catch (error) {
+    const message = error.message || "Could not save scheduled scan.";
+    setScanStatus(message, "error");
+    showToast(message);
+  } finally {
+    if (scheduleButton) scheduleButton.disabled = false;
+  }
+});
+
 gridSizeField?.addEventListener("change", updateCostEstimate);
 scanModeControls.forEach((control) => {
   control.addEventListener("change", () => {
@@ -1558,7 +1702,7 @@ scanModeControls.forEach((control) => {
     );
     setModelStatusUI(
       input.scanMode === "live"
-        ? { kicker: "Live mode", state: "Maps scan", note: "Sign in, confirm center coordinates, then run the scan." }
+        ? { kicker: "Live mode", state: "Maps scan", note: "Sign in, confirm center coordinates, then run the provider-backed scan." }
         : undefined
     );
     updateCostEstimate();
@@ -1568,7 +1712,7 @@ updateCostEstimate();
 loadAccount();
 
 const initialParams = new URLSearchParams(window.location.search);
-if (initialParams.get("example") === "1") {
+if (initialParams.get("example") === "1" || initialParams.get("demo") === "1") {
   loadExample();
 }
 

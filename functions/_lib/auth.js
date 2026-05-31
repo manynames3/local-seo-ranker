@@ -18,7 +18,8 @@ export async function loginWithAccessCode(request, env, body = {}) {
   const openSignup = String(env.ALLOW_OPEN_SIGNUPS || "").toLowerCase() === "true";
   const userCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
   const firstUserBootstrap = !configuredCode && Number(userCount?.count || 0) === 0;
-  if (!openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
+  const existingUser = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+  if (!existingUser && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
     return { response: jsonResponse(request, env, { error: "Access code is required.", code: "invalid_access_code" }, 401) };
   }
 

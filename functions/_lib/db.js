@@ -79,6 +79,28 @@ const SCHEMA = [
     expires_at TEXT NOT NULL,
     PRIMARY KEY (org_id, query_key)
   )`,
+  `CREATE TABLE IF NOT EXISTS scan_schedules (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    business_name TEXT NOT NULL,
+    website_url TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    city TEXT NOT NULL,
+    state TEXT NOT NULL,
+    grid_size INTEGER NOT NULL,
+    center_lat REAL NOT NULL,
+    center_lon REAL NOT NULL,
+    point_spacing_km REAL NOT NULL,
+    frequency TEXT NOT NULL,
+    alert_threshold INTEGER NOT NULL,
+    alert_email TEXT,
+    status TEXT NOT NULL,
+    next_run_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    request_json TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS usage_events (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -101,6 +123,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash)",
   "CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id)",
   "CREATE INDEX IF NOT EXISTS idx_scans_org_created ON scans(org_id, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_scan_schedules_org_updated ON scan_schedules(org_id, updated_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_usage_org_created ON usage_events(org_id, created_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_rate_org_route_created ON rate_events(org_id, route, created_at DESC)"
 ];
