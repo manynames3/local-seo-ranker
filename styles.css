@@ -241,6 +241,34 @@ h3 {
   line-height: 1.5;
 }
 
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hero-links a,
+.about-project a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 8px 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.hero-links a:hover,
+.about-project a:hover {
+  background: #fff;
+}
+
 .eyebrow,
 .section-label,
 .placeholder-kicker {
@@ -283,6 +311,31 @@ h3 {
   gap: 12px;
   align-items: end;
   padding: 14px;
+}
+
+.about-project {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.about-project h2 {
+  margin-bottom: 6px;
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.about-project p {
+  max-width: 900px;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 label,
@@ -616,13 +669,10 @@ textarea:focus {
 .ranking-map-frame {
   min-height: 560px;
   background:
-    linear-gradient(28deg, transparent 0 47%, rgba(57, 131, 155, 0.2) 47% 49%, transparent 49%),
-    linear-gradient(128deg, transparent 0 58%, rgba(92, 111, 105, 0.18) 58% 60%, transparent 60%),
-    linear-gradient(12deg, transparent 0 34%, rgba(255, 255, 255, 0.8) 34% 35.2%, transparent 35.2%),
-    linear-gradient(152deg, transparent 0 64%, rgba(255, 255, 255, 0.86) 64% 65.2%, transparent 65.2%),
-    radial-gradient(circle at 72% 22%, rgba(21, 145, 90, 0.1), transparent 18%),
-    linear-gradient(0deg, rgba(21, 145, 90, 0.12), rgba(255, 255, 255, 0.24)),
-    #edf2ea;
+    radial-gradient(circle at 58% 48%, rgba(21, 145, 90, 0.14), transparent 28%),
+    radial-gradient(circle at 28% 78%, rgba(201, 69, 54, 0.1), transparent 24%),
+    linear-gradient(0deg, rgba(21, 145, 90, 0.08), rgba(255, 255, 255, 0.3)),
+    #f2f6f4;
 }
 
 .ranking-map-frame::before,
@@ -635,16 +685,16 @@ textarea:focus {
 .ranking-map-frame::before {
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(47, 87, 79, 0.08) 1px, transparent 1px) 0 0 / 92px 92px,
-    linear-gradient(0deg, rgba(47, 87, 79, 0.08) 1px, transparent 1px) 0 0 / 92px 92px;
-  opacity: 0.58;
+    linear-gradient(90deg, rgba(47, 87, 79, 0.08) 1px, transparent 1px) 0 0 / 74px 74px,
+    linear-gradient(0deg, rgba(47, 87, 79, 0.08) 1px, transparent 1px) 0 0 / 74px 74px;
+  opacity: 0.72;
 }
 
 .ranking-map-frame::after {
   inset: 0;
   background:
-    radial-gradient(circle at 54% 51%, transparent 0 33%, rgba(255, 255, 255, 0.34) 47%, transparent 61%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.34), transparent 18%, transparent 84%, rgba(255, 255, 255, 0.3));
+    radial-gradient(circle at 56% 52%, transparent 0 30%, rgba(255, 255, 255, 0.32) 48%, transparent 66%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.48), transparent 20%, transparent 83%, rgba(255, 255, 255, 0.42));
 }
 
 .map-surface {
@@ -762,33 +812,40 @@ textarea:focus {
   font-weight: 800;
 }
 
-.map-label {
+.grid-surface-label {
   position: absolute;
-  z-index: 1;
-  color: rgba(57, 76, 72, 0.58);
-  font-size: 11px;
+  top: 18px;
+  right: 18px;
+  z-index: 4;
+  display: grid;
+  gap: 2px;
+  max-width: min(360px, calc(100% - 230px));
+  border: 1px solid rgba(194, 206, 200, 0.78);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--muted);
+  box-shadow: 0 10px 24px rgba(24, 32, 31, 0.09);
+  text-align: right;
+}
+
+.grid-surface-label span {
+  color: var(--green);
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.map-label-main {
-  top: 48%;
-  right: 13%;
+.grid-surface-label strong {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.15;
 }
 
-.map-label-north {
-  top: 12%;
-  left: 45%;
-}
-
-.map-label-east {
-  right: 6%;
-  bottom: 30%;
-}
-
-.map-label-south {
-  left: 14%;
-  bottom: 11%;
+.grid-surface-label small {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .rank-coverage,
@@ -1372,6 +1429,7 @@ th:first-child {
 
 @media (max-width: 1180px) {
   .scan-panel,
+  .about-project,
   .market-board,
   .territory-shell,
   .hero-strip {
@@ -1484,8 +1542,13 @@ th:first-child {
     grid-template-columns: 1fr 1fr;
   }
 
-  .map-label {
-    display: none;
+  .grid-surface-label {
+    position: relative;
+    top: auto;
+    right: auto;
+    max-width: none;
+    margin-bottom: 12px;
+    text-align: left;
   }
 
   .rank-coverage {

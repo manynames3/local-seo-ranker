@@ -700,6 +700,10 @@ function renderTerritory(report) {
   const live = report.scan?.mode === "live";
   const badge = live ? "Live Scrappa" : "Demo estimate";
   const rankWord = live ? "Live" : "Estimated demo";
+  const surfaceTitle = live ? "Live rank grid" : "Estimated territory grid";
+  const surfaceNote = live
+    ? "Live Maps rank cells. This is a grid visualization, not an embedded map tile."
+    : "Illustrative estimate. This is not a real map tile or live Google Maps ranking.";
   const providerNote = live
     ? `${territory.rankPoints} Scrappa Maps requests. Matched cells show observed rank; 20+ means not found in returned results.`
     : "Live Scrappa rank evidence not connected for this report.";
@@ -714,6 +718,7 @@ function renderTerritory(report) {
             <div><dt>Business name</dt><dd>${escapeHtml(report.input.businessName || domainFromUrl(report.input.websiteUrl))}</dd></div>
             <div><dt>Keyword</dt><dd>${escapeHtml(report.input.keyword)}</dd></div>
             <div><dt>Center point</dt><dd>${escapeHtml(territory.market)}</dd></div>
+            <div><dt>View type</dt><dd>${escapeHtml(surfaceTitle)}</dd></div>
             <div><dt>Grid size</dt><dd>${territory.gridSize}</dd></div>
             <div><dt>Distance between points</dt><dd>${territory.pointSpacing}</dd></div>
             <div><dt>Radius</dt><dd>${territory.radius}</dd></div>
@@ -727,10 +732,11 @@ function renderTerritory(report) {
           <p>${escapeHtml(providerNote)}</p>
         </aside>
 
-        <span class="map-label map-label-main">${escapeHtml(report.input.city || "Target city")}</span>
-        <span class="map-label map-label-north">Market north</span>
-        <span class="map-label map-label-east">Service edge</span>
-        <span class="map-label map-label-south">Weak pocket</span>
+        <div class="grid-surface-label">
+          <span>${escapeHtml(surfaceTitle)}</span>
+          <strong>${escapeHtml(territory.market)}</strong>
+          <small>${escapeHtml(surfaceNote)}</small>
+        </div>
 
         <div class="rank-coverage" aria-hidden="true"></div>
         <div class="rank-heat rank-heat-a" aria-hidden="true"></div>
