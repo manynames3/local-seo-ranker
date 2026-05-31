@@ -15,13 +15,24 @@ Parameters:
   GitHubBranch:
     Type: String
     Default: main
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set false when this AWS account already has a GitHub Actions OIDC provider.
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Existing arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com value when CreateGitHubOidcProvider is false.
 
 Conditions:
   AllowAllRepos: !Equals [!Ref GitHubRepoPattern, "*"]
+  ShouldCreateGitHubOidcProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
 
 Resources:
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateGitHubOidcProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
@@ -38,7 +49,10 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref GitHubOidcProvider
+              Federated: !If
+                - ShouldCreateGitHubOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingGitHubOidcProviderArn
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:

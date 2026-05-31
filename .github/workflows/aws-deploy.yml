@@ -90,12 +90,16 @@ jobs:
             --exclude ".git/*" \
             --exclude ".github/*" \
             --exclude "aws/*" \
+            --exclude "docs/*" \
             --exclude "functions/*" \
             --exclude "infra/*" \
+            --exclude "node_modules/*" \
+            --exclude "scripts/*" \
             --exclude "tests/*" \
+            --exclude ".env*" \
             --exclude "lambda.zip" \
-            --exclude "package.json" \
-            --exclude ".env.example"
+            --exclude "package*.json" \
+            --exclude "README.md"
 
       - name: Invalidate CloudFront
         run: |

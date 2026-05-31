@@ -28,6 +28,17 @@ The Lambda backend in `aws/lambda/handler.mjs` supports the same core product AP
 
 Deploy `infra/aws/github-oidc-bootstrap.yml` from an AWS admin session. This creates a GitHub OIDC provider and a deploy role.
 
+Fastest path from the AWS Console is CloudShell:
+
+```bash
+git clone https://github.com/manynames3/local-seo-ranker.git
+cd local-seo-ranker
+ADMIN_EMAILS='hangi87@aim.com' \
+bash scripts/deploy-aws-cloudshell.sh
+```
+
+The script privately prompts for the app access code and Scrappa key, then deploys the GitHub OIDC role, the AWS application stack, the Lambda package, the static site, and a CloudFront invalidation. If the AWS account already has a GitHub Actions OIDC provider, the script reuses it instead of trying to create a duplicate provider.
+
 Recommended for this repo only:
 
 ```bash
@@ -39,7 +50,24 @@ aws cloudformation deploy \
     ProjectName=local-seo-ranker \
     GitHubOrg=manynames3 \
     GitHubRepoPattern=local-seo-ranker \
-    GitHubBranch=main
+    GitHubBranch=main \
+    CreateGitHubOidcProvider=true
+```
+
+If the AWS account already has `arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com`, use:
+
+```bash
+aws cloudformation deploy \
+  --stack-name local-seo-ranker-github-oidc \
+  --template-file infra/aws/github-oidc-bootstrap.yml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=local-seo-ranker \
+    GitHubOrg=manynames3 \
+    GitHubRepoPattern=local-seo-ranker \
+    GitHubBranch=main \
+    CreateGitHubOidcProvider=false \
+    ExistingGitHubOidcProviderArn='arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com'
 ```
 
 If you really want the same AWS role to deploy all repos in `manynames3`, set `GitHubRepoPattern=*`. That is more convenient but less isolated.
