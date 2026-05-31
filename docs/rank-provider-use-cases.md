@@ -137,13 +137,18 @@ type RankPoint = {
 };
 ```
 
-Recommended rollout:
+Current implementation status:
 
-1. Add a Cloudflare backend route for `/api/scans`.
-2. Store the Scrappa API key as a Cloudflare secret.
-3. Generate grid coordinates server-side.
-4. Run Scrappa Maps Advanced Search for each coordinate.
-5. Normalize and cache results.
-6. Render live ranks in the existing local ranking map view.
-7. Add SerpBase as a fallback adapter after Scrappa is proven.
-8. Add DataForSEO only when paid usage justifies the larger provider footprint.
+1. Cloudflare backend route for `/api/scans` exists.
+2. Grid coordinates are generated server-side from center latitude, longitude, grid size, and spacing.
+3. Scrappa API keys are expected to be stored as Cloudflare secrets.
+4. Scrappa responses are normalized into the existing territory/rank-cell shape.
+5. The frontend falls back to an explicitly labeled estimate if live mode is unavailable.
+
+Recommended next rollout:
+
+1. Add scan persistence and caching so duplicate live scans do not create accidental provider costs.
+2. QA Scrappa result matching against manual Google Maps checks for 10-20 real businesses.
+3. Add a city/address geocoder so users do not need to paste center coordinates manually.
+4. Add SerpBase as a fallback adapter after Scrappa is proven.
+5. Add DataForSEO only when paid usage justifies the larger provider footprint.

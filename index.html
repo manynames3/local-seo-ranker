@@ -8,6 +8,7 @@
       content="Local SEO Ranker: territory, competitor, entity, and content gap analysis for local service businesses."
     />
     <title>Local SEO Ranker</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -50,13 +51,13 @@
             </p>
           </div>
           <div class="hero-proof" aria-label="Current model status">
-            <span>Estimated model</span>
-            <strong>API-ready</strong>
-            <small>Built for crawl, SERP, GBP, GSC, review, and citation inputs.</small>
+            <span id="model-kicker">Estimated model</span>
+            <strong id="model-state">Demo mode</strong>
+            <small id="model-note">No live Google Maps data is requested in this build.</small>
           </div>
         </section>
 
-        <form id="seo-form" class="scan-panel">
+        <form id="seo-form" class="scan-panel" aria-describedby="model-disclosure">
           <label>
             Business website
             <input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://example.com" required />
@@ -88,6 +89,45 @@
             <input id="mapsUrl" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." />
           </label>
 
+          <div class="center-fields">
+            <label>
+              Center lat
+              <input id="centerLat" name="centerLat" type="text" inputmode="decimal" placeholder="33.7490" />
+            </label>
+            <label>
+              Center lon
+              <input id="centerLon" name="centerLon" type="text" inputmode="decimal" placeholder="-84.3880" />
+            </label>
+          </div>
+
+          <fieldset class="scan-settings">
+            <legend>Scan settings</legend>
+            <label class="mode-option">
+              <input name="scanMode" type="radio" value="estimate" checked />
+              <span>
+                <strong>Demo estimate</strong>
+                <small>Instant directional report; no provider cost.</small>
+              </span>
+            </label>
+            <label class="mode-option">
+              <input name="scanMode" type="radio" value="live" />
+              <span>
+                <strong>Live Scrappa</strong>
+                <small>Uses `/api/scans`; requires backend key and center coordinates.</small>
+              </span>
+            </label>
+            <label class="grid-size-field">
+              Grid size
+              <select id="gridSize" name="gridSize">
+                <option value="7">7 x 7</option>
+                <option value="9" selected>9 x 9</option>
+                <option value="11">11 x 11</option>
+              </select>
+            </label>
+            <input id="pointSpacingKm" name="pointSpacingKm" type="hidden" value="2" />
+            <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 provider requests in live mode.</p>
+          </fieldset>
+
           <div class="competitor-fields" aria-label="Competitor URLs">
             <span>Competitors</span>
             <input id="competitor1" name="competitor1" type="url" placeholder="Competitor 1 URL" />
@@ -105,9 +145,17 @@
             ></textarea>
           </label>
 
+          <p id="model-disclosure" class="model-disclosure">
+            Current build: generates an estimated report locally, and can call `/api/scans` when deployed with a Scrappa backend secret.
+          </p>
+
+          <div id="scan-status" class="scan-status" role="status">
+            Demo estimate ready. Live mode requires `SCRAPPA_API_KEY` in Cloudflare and center coordinates.
+          </div>
+
           <div class="form-actions">
-            <button class="primary-action" type="submit">Run market scan</button>
-            <button class="ghost-action" id="demo-button" type="button">Load demo</button>
+            <button class="primary-action" id="generate-report" type="submit">Generate estimated report</button>
+            <button class="ghost-action" id="demo-button" type="button">Load sample report</button>
           </div>
         </form>
 
@@ -116,7 +164,7 @@
             <div class="card-header">
               <div>
                 <p class="eyebrow">Local ranking view</p>
-                <h2 id="report-title">Run a scan to map the market</h2>
+                <h2 id="report-title">Generate a report to map the market</h2>
               </div>
               <div class="summary-score" aria-label="Total opportunity score">
                 <span id="total-score">--</span>
@@ -129,7 +177,7 @@
             </p>
             <div id="territory-map" class="territory-map empty-map">
               <div class="empty-map-surface" aria-hidden="true"></div>
-              <p>Run a scan to populate estimated rank positions, coverage pockets, and weak zones.</p>
+              <p>Generate an estimated report to populate rank positions, coverage pockets, and weak zones.</p>
             </div>
           </article>
 
@@ -141,7 +189,7 @@
                   <h3>Estimated local visibility</h3>
                 </div>
               </div>
-              <div id="market-pulse" class="pulse-grid empty-copy">Scan results will populate this panel.</div>
+              <div id="market-pulse" class="pulse-grid empty-copy">Report results will populate this panel.</div>
             </article>
 
             <article class="market-card">
@@ -160,8 +208,8 @@
 
         <section id="scorecards" class="score-grid empty-state">
           <article>
-            <span class="placeholder-kicker">Waiting for scan</span>
-            <h3>Authority scores will appear here after the first market scan.</h3>
+            <span class="placeholder-kicker">Waiting for report</span>
+            <h3>Authority scores will appear here after the first estimated report.</h3>
           </article>
         </section>
 
@@ -172,7 +220,7 @@
                 <p class="eyebrow">Competitor comparison</p>
                 <h3>Who has stronger local authority</h3>
               </div>
-              <span class="status-pill neutral">Directional model</span>
+              <span class="status-pill neutral">Estimated model</span>
             </div>
             <div id="comparison-table" class="table-wrap empty-copy">
               Add competitor URLs to compare topical coverage, service depth, city relevance, trust, links, schema, and freshness.

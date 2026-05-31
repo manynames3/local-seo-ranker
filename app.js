@@ -13,6 +13,14 @@ const totalScore = document.querySelector("#total-score");
 const territoryMap = document.querySelector("#territory-map");
 const marketPulse = document.querySelector("#market-pulse");
 const quickRead = document.querySelector("#quick-read");
+const submitButton = document.querySelector("#generate-report");
+const scanStatus = document.querySelector("#scan-status");
+const costEstimate = document.querySelector("#cost-estimate");
+const gridSizeField = document.querySelector("#gridSize");
+const modelKicker = document.querySelector("#model-kicker");
+const modelState = document.querySelector("#model-state");
+const modelNote = document.querySelector("#model-note");
+const scanModeControls = [...document.querySelectorAll('input[name="scanMode"]')];
 const exportButtons = {
   copy: document.querySelector("#copy-report"),
   json: document.querySelector("#download-json"),
@@ -21,6 +29,9 @@ const exportButtons = {
 };
 
 let currentReport = null;
+let isGenerating = false;
+
+const estimatedModelStatus = "Demo estimate. No live Google Maps/SERP data has been requested in this build.";
 
 const scoreDefinitions = [
   ["topicalAuthority", "Topical Authority Score", "Depth of service and supporting content around the target keyword."],
@@ -106,6 +117,19 @@ function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+function parseNumber(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeGridSize(value) {
+  const parsed = Number.parseInt(value, 10);
+  const safe = Number.isFinite(parsed) ? parsed : 9;
+  const bounded = Math.max(3, Math.min(11, safe));
+  return bounded % 2 === 0 ? bounded - 1 : bounded;
+}
+
 function toneFor(score) {
   if (score >= 75) return "strong";
   if (score >= 52) return "moderate";
@@ -126,6 +150,7 @@ function priorityValue(impact, difficulty, confidence = 0) {
 
 function readInput() {
   const data = new FormData(form);
+  const gridSize = normalizeGridSize(data.get("gridSize"));
   const competitors = [1, 2, 3]
     .map((index) => normalizeUrl(data.get(`competitor${index}`)))
     .filter(Boolean)
@@ -138,6 +163,11 @@ function readInput() {
     state: normalizeText(data.get("state")),
     keyword: normalizeText(data.get("keyword")),
     mapsUrl: normalizeUrl(data.get("mapsUrl")),
+    centerLat: parseNumber(data.get("centerLat")),
+    centerLon: parseNumber(data.get("centerLon")),
+    gridSize,
+    pointSpacingKm: parseNumber(data.get("pointSpacingKm")) || 2,
+    scanMode: data.get("scanMode") === "live" ? "live" : "estimate",
     notes: normalizeText(data.get("notes")),
     competitors
   };
@@ -514,7 +544,7 @@ function deterministicNoise(input, x, y) {
 }
 
 function buildTerritory(input, scores, competitors) {
-  const size = 14;
+  const size = normalizeGridSize(input.gridSize);
   const center = (size - 1) / 2;
   const cells = [];
   const ranks = [];
@@ -550,6 +580,7 @@ function buildTerritory(input, scores, competitors) {
         x,
         y,
         rank,
+        displayRank: String(rank),
         center: x === Math.floor(center) && y === Math.floor(center),
         tone: rankTone(rank)
       });
@@ -562,7 +593,7 @@ function buildTerritory(input, scores, competitors) {
   const averageRank = clamp(ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length, 1, 20);
   const coverage = clamp((wins / ranks.length) * 100);
   const contested = clamp(((nearWins + weak) / ranks.length) * 100);
-  const radiusMiles = Math.max(4, 5 + competitors.length * 2);
+  const radiusMiles = Math.max(3, Math.round(((size - 1) * (input.pointSpacingKm || 2) * 0.621371) / 2));
   const radius = `${radiusMiles} mi`;
 
   return {
@@ -576,10 +607,11 @@ function buildTerritory(input, scores, competitors) {
     radius,
     rankPoints: ranks.length,
     coverageArea: `${Math.round(Math.PI * radiusMiles * radiusMiles)} sq mi`,
-    pointSpacing: "2 km",
+    pointSpacing: `${input.pointSpacingKm || 2} km`,
     market: `${input.city || "Target city"}, ${input.state || "State"}`,
     gridSize: `${size} x ${size}`,
-    dataStatus: "Estimated grid until live Maps/SERP rank checks are connected."
+    dataStatus: "Estimated grid until live Maps/SERP rank checks are connected.",
+    provider: "client-estimate"
   };
 }
 
@@ -611,7 +643,7 @@ function analyzeLocalSeo(input) {
 
   return {
     generatedAt: new Date().toISOString(),
-    modelStatus: "Estimated / placeholder until live crawl, GBP, SERP, GSC, and citation APIs are connected.",
+    modelStatus: estimatedModelStatus,
     input,
     scores,
     competitors,
@@ -621,10 +653,16 @@ function analyzeLocalSeo(input) {
     ai,
     roadmap: roadmapGroups,
     territory,
+    scan: {
+      mode: "estimate",
+      provider: "client-estimate",
+      requestCostCredits: 0,
+      reason: "estimate_mode"
+    },
     futureIntegrations: [
       "Google Search Console API",
       "Google Business Profile API",
-      "SERP API",
+      "Scrappa Maps/SERP API",
       "PageSpeed Insights API",
       "Firecrawl, Crawl4AI, or site crawler",
       "Ahrefs, Semrush, or DataForSEO",
@@ -637,8 +675,11 @@ function analyzeLocalSeo(input) {
 function renderReport(report) {
   currentReport = report;
   const { input, scores } = report;
+  const live = report.scan?.mode === "live";
   reportTitle.textContent = `${input.city}, ${input.state}: ${input.keyword} territory`;
-  reportSubtitle.textContent = `${input.businessName || domainFromUrl(input.websiteUrl)} is being scored against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust.`;
+  reportSubtitle.textContent = live
+    ? `${input.businessName || domainFromUrl(input.websiteUrl)} is mapped from live Scrappa rank checks and interpreted against topical, entity, service-depth, internal link, GBP, and AI-readable trust signals.`
+    : `${input.businessName || domainFromUrl(input.websiteUrl)} is being estimated against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust. Use live Scrappa mode before presenting the grid as Google ranking evidence.`;
   totalScore.textContent = scores.totalOpportunity;
   renderTerritory(report);
   renderMarketPulse(report);
@@ -656,10 +697,16 @@ function renderReport(report) {
 function renderTerritory(report) {
   const territory = report.territory;
   const generatedDate = new Date(report.generatedAt).toLocaleDateString();
+  const live = report.scan?.mode === "live";
+  const badge = live ? "Live Scrappa" : "Demo estimate";
+  const rankWord = live ? "Live" : "Estimated demo";
+  const providerNote = live
+    ? `${territory.rankPoints} Scrappa Maps requests. Matched cells show observed rank; 20+ means not found in returned results.`
+    : "Live Scrappa rank evidence not connected for this report.";
   territoryMap.className = "territory-map";
   territoryMap.innerHTML = `
     <div class="territory-shell ranking-shell">
-      <div class="ranking-map-frame" aria-label="Estimated local rank grid for ${escapeHtml(territory.market)}">
+      <div class="ranking-map-frame" aria-label="${live ? "Live" : "Estimated"} local rank grid for ${escapeHtml(territory.market)}">
         <aside class="grid-details-panel">
           <div class="grid-panel-title">Grid Details</div>
           <dl>
@@ -673,11 +720,11 @@ function renderTerritory(report) {
             <div><dt>Coverage</dt><dd>${territory.coverageArea}</dd></div>
           </dl>
           <div class="panel-stats">
-            <span><b>${territory.averageRank}</b><small>Average rank</small></span>
+            <span><b>${territory.averageRank ?? "20+"}</b><small>Average rank</small></span>
             <span><b>${territory.rankPoints}/${territory.size * territory.size}</b><small>Rank points</small></span>
           </div>
-          <button type="button" disabled>Ranking details</button>
-          <p>Estimated local ranking view</p>
+          <span class="panel-badge ${live ? "is-live" : ""}">${badge}</span>
+          <p>${escapeHtml(providerNote)}</p>
         </aside>
 
         <span class="map-label map-label-main">${escapeHtml(report.input.city || "Target city")}</span>
@@ -692,7 +739,7 @@ function renderTerritory(report) {
           ${territory.cells
             .map(
               (cell) =>
-                `<span class="rank-cell ${cell.tone}${cell.center ? " center" : ""}" title="Estimated rank ${cell.rank}">${cell.rank}</span>`
+                `<span class="rank-cell ${cell.tone}${cell.center ? " center" : ""}" title="${rankWord} rank ${cell.displayRank || cell.rank || "20+"}">${cell.displayRank || cell.rank || "20+"}</span>`
             )
             .join("")}
         </div>
@@ -708,13 +755,13 @@ function renderTerritory(report) {
       <div class="territory-insights grid-summary-row">
         <div class="insight-row">
           <span>Average grid rank</span>
-          <strong>${territory.averageRank}</strong>
-          <p>Directional estimate across a ${territory.radius} competitive radius.</p>
+          <strong>${territory.averageRank ?? "20+"}</strong>
+          <p>${live ? "Observed" : "Directional estimate"} across a ${territory.radius} competitive radius.</p>
         </div>
         <div class="insight-row">
           <span>Local pack cells</span>
           <strong>${territory.coverage}%</strong>
-          <p>${territory.wins} estimated cells rank in positions 1-3.</p>
+          <p>${territory.wins} ${live ? "observed" : "estimated"} cells rank in positions 1-3.</p>
         </div>
         <div class="insight-row">
           <span>Weak pockets</span>
@@ -724,7 +771,7 @@ function renderTerritory(report) {
         <div class="insight-row">
           <span>Model status</span>
           <strong>${territory.gridSize}</strong>
-          <p>${territory.dataStatus}</p>
+          <p>${escapeHtml(report.modelStatus)}</p>
         </div>
       </div>
     </div>
@@ -735,7 +782,14 @@ function renderMarketPulse(report) {
   const strongestCompetitor = report.competitors
     .filter((row) => row.id !== "user")
     .sort((a, b) => b.overallStrength - a.overallStrength)[0];
-  const confidence = report.input.competitors.length >= 3 ? "High direction" : report.input.competitors.length ? "Moderate direction" : "Low direction";
+  const live = report.scan?.mode === "live";
+  const confidence = live
+    ? "Live Scrappa evidence"
+    : report.input.competitors.length >= 3
+      ? "Strong input set"
+      : report.input.competitors.length
+        ? "Partial input set"
+        : "Needs competitors";
   marketPulse.className = "pulse-grid";
   marketPulse.innerHTML = `
     <div class="pulse-metric">
@@ -746,7 +800,7 @@ function renderMarketPulse(report) {
     <div class="pulse-metric">
       <span>Coverage pressure</span>
       <strong>${report.territory.contested}%</strong>
-      <p>Estimated grid cells that are near-win, contested, or weak.</p>
+      <p>${live ? "Observed" : "Estimated"} grid cells that are near-win, contested, or weak.</p>
     </div>
     <div class="pulse-metric">
       <span>Competitor ceiling</span>
@@ -754,9 +808,9 @@ function renderMarketPulse(report) {
       <p>${strongestCompetitor ? escapeHtml(domainFromUrl(strongestCompetitor.website)) : "Add competitors to estimate the ceiling."}</p>
     </div>
     <div class="pulse-metric">
-      <span>Confidence</span>
+      <span>Evidence level</span>
       <strong>${confidence}</strong>
-      <p>${report.modelStatus}</p>
+      <p>${escapeHtml(report.modelStatus)}</p>
     </div>
   `;
 }
@@ -983,6 +1037,43 @@ function setExportsEnabled(enabled) {
   });
 }
 
+function setFormBusy(enabled, input = readInput()) {
+  isGenerating = enabled;
+  form.setAttribute("aria-busy", String(enabled));
+  if (submitButton) {
+    submitButton.disabled = enabled;
+    submitButton.textContent = enabled
+      ? input.scanMode === "live"
+        ? "Running live scan..."
+        : "Generating..."
+      : input.scanMode === "live"
+        ? "Run live Scrappa scan"
+        : "Generate estimated report";
+  }
+  demoButton.disabled = enabled;
+}
+
+function setScanStatus(message, tone = "neutral") {
+  if (!scanStatus) return;
+  scanStatus.textContent = message;
+  scanStatus.className = `scan-status${tone === "live" ? " is-live" : tone === "warning" ? " is-warning" : tone === "error" ? " is-error" : ""}`;
+}
+
+function setModelStatusUI({ kicker = "Estimated model", state = "Demo mode", note = "No live Google Maps data is requested in this build." } = {}) {
+  if (modelKicker) modelKicker.textContent = kicker;
+  if (modelState) modelState.textContent = state;
+  if (modelNote) modelNote.textContent = note;
+}
+
+function updateCostEstimate() {
+  const input = readInput();
+  const requests = input.gridSize * input.gridSize;
+  if (costEstimate) {
+    costEstimate.textContent = `${input.gridSize} x ${input.gridSize} grid = ${requests} provider requests in live mode.`;
+  }
+  setFormBusy(false, input);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -997,6 +1088,8 @@ function reportToText(report) {
     `Local SEO Ranker Territory Report`,
     `Generated: ${new Date(report.generatedAt).toLocaleString()}`,
     `Status: ${report.modelStatus}`,
+    `Provider: ${report.scan?.provider || report.territory.provider || "client-estimate"}`,
+    `Provider requests: ${report.scan?.requestCostCredits ?? 0}`,
     ``,
     `Business: ${report.input.businessName}`,
     `Website: ${report.input.websiteUrl}`,
@@ -1009,6 +1102,8 @@ function reportToText(report) {
     `- Coverage pressure: ${report.territory.contested}%`,
     `- Weak pockets: ${report.territory.weak}`,
     `- Radius: ${report.territory.radius}`,
+    `- Grid size: ${report.territory.gridSize}`,
+    `- Point spacing: ${report.territory.pointSpacing}`,
     ``,
     `Scores`,
     ...scoreDefinitions.map(([, label], index) => {
@@ -1030,6 +1125,8 @@ function reportToText(report) {
 
 function reportToCsv(report) {
   const rows = [["Section", "Item", "Score or Priority", "Impact", "Difficulty", "Notes"]];
+  rows.push(["Scan", "Provider", report.scan?.provider || report.territory.provider || "client-estimate", "", "", report.modelStatus]);
+  rows.push(["Scan", "Provider requests", report.scan?.requestCostCredits ?? 0, "", "", report.scan?.reason || ""]);
   rows.push(["Territory", "Average grid rank", report.territory.averageRank, "", "", report.territory.dataStatus]);
   rows.push(["Territory", "Local pack coverage", `${report.territory.coverage}%`, "", "", `${report.territory.wins} estimated cells in positions 1-3`]);
   rows.push(["Territory", "Coverage pressure", `${report.territory.contested}%`, "", "", "Near-win, contested, or weak cells"]);
@@ -1069,16 +1166,108 @@ function showToast(message) {
   if (existing) existing.remove();
   const toast = document.createElement("div");
   toast.className = "toast";
+  toast.setAttribute("role", "status");
   toast.textContent = message;
   document.body.appendChild(toast);
   window.setTimeout(() => toast.remove(), 2600);
 }
 
-form.addEventListener("submit", (event) => {
+async function requestProviderScan(input) {
+  const response = await fetch("/api/scans", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  const payload = await response.json().catch(() => null);
+  if (!payload) {
+    throw new Error(`Scan API returned ${response.status}.`);
+  }
+  if (!response.ok && payload.mode !== "unavailable") {
+    throw new Error(payload.error || payload.reason || `Scan API returned ${response.status}.`);
+  }
+  return payload;
+}
+
+function applyProviderScan(report, scanResult) {
+  report.scan = {
+    mode: scanResult.mode === "live" ? "live" : "estimate",
+    provider: scanResult.provider || "scrappa",
+    requestCostCredits: scanResult.requestCostCredits || 0,
+    reason: scanResult.reason || ""
+  };
+
+  if (scanResult.mode === "live" && scanResult.territory) {
+    report.territory = scanResult.territory;
+    report.modelStatus = scanResult.modelStatus;
+    report.generatedAt = scanResult.generatedAt || report.generatedAt;
+    return "live";
+  }
+
+  report.modelStatus = scanResult.modelStatus || liveUnavailableMessage(scanResult.reason);
+  return "fallback";
+}
+
+function liveUnavailableMessage(reason) {
+  const messages = {
+    missing_scrappa_key: "Live Scrappa scans require SCRAPPA_API_KEY on the Cloudflare backend. Showing the estimated report instead.",
+    missing_center_coordinates: "Live Scrappa scans require center latitude and longitude. Showing the estimated report instead.",
+    estimate_mode: estimatedModelStatus,
+    api_unavailable: "The scan API is not available in this local/static environment. Showing the estimated report instead."
+  };
+  return messages[reason] || "Live scan unavailable. Showing the estimated report instead.";
+}
+
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (isGenerating) return;
   const input = readInput();
-  const report = analyzeLocalSeo(input);
-  renderReport(report);
+  setFormBusy(true, input);
+  setExportsEnabled(false);
+  try {
+    let report = analyzeLocalSeo(input);
+
+    if (input.scanMode === "live") {
+      setScanStatus("Requesting live Scrappa scan from `/api/scans`...", "warning");
+      try {
+        const scanResult = await requestProviderScan(input);
+        const resultMode = applyProviderScan(report, scanResult);
+        if (resultMode === "live") {
+          setScanStatus(`Live Scrappa scan complete. ${report.scan.requestCostCredits} provider requests used.`, "live");
+          setModelStatusUI({ kicker: "Live data", state: "Scrappa", note: `${report.scan.requestCostCredits} provider requests used.` });
+          showToast("Live Scrappa report generated.");
+        } else {
+          setScanStatus(report.modelStatus, "warning");
+          setModelStatusUI({ kicker: "Fallback", state: "Estimate", note: report.modelStatus });
+          showToast("Live scan unavailable. Estimated report generated.");
+        }
+      } catch (error) {
+        report.modelStatus = liveUnavailableMessage("api_unavailable");
+        report.scan = {
+          mode: "estimate",
+          provider: "client-estimate",
+          requestCostCredits: input.gridSize * input.gridSize,
+          reason: error instanceof Error ? error.message : "api_unavailable"
+        };
+        setScanStatus(report.modelStatus, "warning");
+        setModelStatusUI({ kicker: "Fallback", state: "Estimate", note: report.modelStatus });
+        showToast("Scan API unavailable. Estimated report generated.");
+      }
+    } else {
+      setScanStatus(estimatedModelStatus, "neutral");
+      setModelStatusUI();
+      showToast("Estimated report generated.");
+    }
+
+    renderReport(report);
+  } catch (error) {
+    console.error(error);
+    setScanStatus("Could not generate the report. Check the inputs and try again.", "error");
+    showToast("Could not generate the report. Check the inputs and try again.");
+  } finally {
+    setFormBusy(false, input);
+  }
 });
 
 demoButton.addEventListener("click", () => {
@@ -1093,6 +1282,11 @@ function loadDemo() {
     state: "GA",
     keyword: "roof repair",
     mapsUrl: "https://maps.google.com/?cid=123456789",
+    centerLat: "33.7490",
+    centerLon: "-84.3880",
+    gridSize: "9",
+    pointSpacingKm: "2",
+    scanMode: "estimate",
     competitor1: "https://atlantaroofrepairpros.example",
     competitor2: "https://stormroofatlanta.example",
     competitor3: "https://georgiaroofexperts.example",
@@ -1103,8 +1297,30 @@ function loadDemo() {
     const field = form.elements.namedItem(key);
     if (field) field.value = value;
   });
+  updateCostEstimate();
   form.requestSubmit();
 }
+
+gridSizeField?.addEventListener("change", updateCostEstimate);
+scanModeControls.forEach((control) => {
+  control.addEventListener("change", () => {
+    const input = readInput();
+    setFormBusy(false, input);
+    setScanStatus(
+      input.scanMode === "live"
+        ? "Live mode will call `/api/scans`; center coordinates and SCRAPPA_API_KEY are required."
+        : estimatedModelStatus,
+      input.scanMode === "live" ? "warning" : "neutral"
+    );
+    setModelStatusUI(
+      input.scanMode === "live"
+        ? { kicker: "Live mode", state: "Scrappa", note: "Requires backend key and center coordinates." }
+        : undefined
+    );
+    updateCostEstimate();
+  });
+});
+updateCostEstimate();
 
 if (new URLSearchParams(window.location.search).get("demo") === "1") {
   loadDemo();
@@ -1112,8 +1328,14 @@ if (new URLSearchParams(window.location.search).get("demo") === "1") {
 
 exportButtons.copy.addEventListener("click", async () => {
   if (!currentReport) return;
-  await navigator.clipboard.writeText(reportToText(currentReport));
-  showToast("Report copied to clipboard.");
+  const reportText = reportToText(currentReport);
+  try {
+    await copyText(reportText);
+    showToast("Report copied to clipboard.");
+  } catch {
+    downloadFile("local-seo-ranker-report.txt", reportText, "text/plain");
+    showToast("Clipboard blocked. Downloaded a text report instead.");
+  }
 });
 
 exportButtons.json.addEventListener("click", () => {
@@ -1130,6 +1352,32 @@ exportButtons.print.addEventListener("click", () => {
   if (!currentReport) return;
   window.print();
 });
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for browser contexts where the Clipboard API is present but not focused.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Clipboard copy command failed.");
+  }
+}
 
 // API integration note: replace analyzeLocalSeo with a pipeline that enriches the same report shape from
 // GSC, GBP, SERP, PageSpeed, crawler, Places, review, citation, and link intelligence providers.

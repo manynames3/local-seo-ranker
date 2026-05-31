@@ -1,0 +1,12 @@
+{
+  "name": "local-seo-ranker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check app.js && node --check functions/api/scans.js && node --test",
+    "test": "node --test",
+    "dev": "wrangler pages dev .",
+    "serve": "python3 -m http.server 4173"
+  }
+}
