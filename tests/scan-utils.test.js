@@ -75,34 +75,33 @@ test("builds the territory contract used by the frontend", () => {
   assert.equal(territory.provider, "scrappa");
 });
 
-test("keeps live scans disabled until explicitly enabled", async () => {
+test("returns a strategy-mode response without account storage", async () => {
+  const response = await onRequestPost({
+    request: new Request("https://local-seo-ranker.pages.dev/api/scans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...liveRequestBody({ gridSize: 9 }), scanMode: "estimate" })
+    }),
+    env: {}
+  });
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.reason, "estimate_mode");
+  assert.equal(payload.requestCostCredits, 81);
+});
+
+test("requires account storage before live scans can run", async () => {
   const response = await onRequestPost({
     request: new Request("https://local-seo-ranker.pages.dev/api/scans", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(liveRequestBody({ gridSize: 9 }))
     }),
-    env: { SCRAPPA_API_KEY: "fake-key" }
-  });
-  const payload = await response.json();
-  assert.equal(response.status, 409);
-  assert.equal(payload.reason, "live_scans_disabled");
-  assert.equal(payload.requestCostCredits, 81);
-});
-
-test("blocks live scans above the backend point cap", async () => {
-  const response = await onRequestPost({
-    request: new Request("https://local-seo-ranker.pages.dev/api/scans", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(liveRequestBody({ gridSize: 11 }))
-    }),
     env: { SCRAPPA_API_KEY: "fake-key", ENABLE_LIVE_SCANS: "true" }
   });
   const payload = await response.json();
-  assert.equal(response.status, 422);
-  assert.equal(payload.reason, "grid_too_large");
-  assert.equal(payload.maxPoints, 81);
+  assert.equal(response.status, 503);
+  assert.equal(payload.code, "db_missing");
 });
 
 function liveRequestBody(overrides = {}) {

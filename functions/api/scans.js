@@ -6,14 +6,12 @@ import {
   normalizeScanInput,
   normalizeScrappaItems
 } from "../_lib/scan-utils.js";
-
-const jsonHeaders = {
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store"
-};
+import { accountResponse, requireAccount } from "../_lib/auth.js";
+import { addDaysIso, consumeCredits, enforceRateLimit, nowIso, sha256Hex } from "../_lib/db.js";
+import { jsonResponse, optionsResponse } from "../_lib/http.js";
 
 export async function onRequestOptions({ request, env = {} }) {
-  return new Response(null, { status: 204, headers: corsHeaders(request, env) });
+  return optionsResponse(request, env);
 }
 
 export async function onRequestPost({ request, env = {} }) {
@@ -34,6 +32,9 @@ export async function onRequestPost({ request, env = {} }) {
     return jsonResponse(request, env, buildUnavailableResponse(input, "estimate_mode"));
   }
 
+  const auth = await requireAccount(request, env);
+  if (auth.response) return auth.response;
+
   if (!liveScansEnabled(env)) {
     return jsonResponse(request, env, buildUnavailableResponse(input, "live_scans_disabled"), 409);
   }
@@ -52,15 +53,58 @@ export async function onRequestPost({ request, env = {} }) {
     return jsonResponse(request, env, buildUnavailableResponse(input, "missing_center_coordinates"), 422);
   }
 
+  await enforceRateLimit(env.DB, { orgId: auth.account.org.id, userId: auth.account.user.id, route: "scan", limit: 12, windowMinutes: 60 });
+  const cacheKey = await buildScanCacheKey(input);
+  const cached = await getCachedScan(env.DB, auth.account.org.id, cacheKey);
+  if (cached) {
+    const scan = {
+      ...cached,
+      ok: true,
+      mode: "live",
+      cached: true,
+      requestCostCredits: 0,
+      chargedCredits: 0,
+      modelStatus: "Cached live Maps data. No provider request was made for this scan."
+    };
+    await saveScanRecord(env.DB, { auth, input, cacheKey, scan, status: "cached", requestCredits: requestedPoints, chargedCredits: 0 });
+    return jsonResponse(request, env, { ...scan, account: accountResponse(auth.account, auth.subscription) });
+  }
+
   try {
+    const subscription = await consumeCredits(env.DB, {
+      orgId: auth.account.org.id,
+      userId: auth.account.user.id,
+      credits: requestedPoints,
+      kind: "scan",
+      description: `${input.gridSize}x${input.gridSize} ${input.keyword} in ${input.city}, ${input.state}`
+    });
     const scan = await runScrappaGrid(input, env.SCRAPPA_API_KEY);
+    scan.chargedCredits = requestedPoints;
+    scan.account = accountResponse(auth.account, subscription);
+    await saveScanCache(env.DB, auth.account.org.id, cacheKey, scan, requestedPoints);
+    await saveScanRecord(env.DB, { auth, input, cacheKey, scan, status: "complete", requestCredits: requestedPoints, chargedCredits: requestedPoints });
     return jsonResponse(request, env, scan);
   } catch (error) {
+    if (error.code === "insufficient_credits") {
+      return jsonResponse(
+        request,
+        env,
+        {
+          error: error.message,
+          code: error.code,
+          credits: error.creditSummary
+        },
+        402
+      );
+    }
+    if (error.code === "rate_limited") {
+      return jsonResponse(request, env, { error: error.message, code: error.code }, 429);
+    }
     return jsonResponse(
       request,
       env,
       {
-        error: "Scrappa scan failed.",
+        error: "Live scan failed.",
         reason: error instanceof Error ? error.message : "Unknown provider error.",
         mode: "provider_error",
         provider: "scrappa"
@@ -139,7 +183,7 @@ async function runScrappaGrid(input, apiKey) {
     provider: "scrappa",
     generatedAt: new Date().toISOString(),
     startedAt,
-    modelStatus: "Live Scrappa Maps data. Rank cells are matched against returned Maps results.",
+    modelStatus: "Live Maps rank data. Rank cells are matched against returned Maps results.",
     requestCostCredits: points.length,
     warnings: [],
     territory: buildTerritoryFromRankPoints({ input, points: results, provider: "scrappa" })
@@ -168,10 +212,10 @@ function buildUnavailableResponse(input, reason, extra = {}) {
 function statusForUnavailable(reason) {
   const statuses = {
     estimate_mode: "Estimate mode selected. No provider request was made.",
-    live_scans_disabled: "Live Scrappa scans are disabled on this deployment until ENABLE_LIVE_SCANS=true is set.",
+    live_scans_disabled: "Live Maps scans are not available on this deployment.",
     grid_too_large: "Requested grid exceeds the live scan cap. Choose a smaller grid or raise MAX_LIVE_GRID_POINTS.",
-    missing_scrappa_key: "Live Scrappa scans require SCRAPPA_API_KEY on the Cloudflare backend.",
-    missing_center_coordinates: "Live Scrappa scans require a center latitude and longitude until geocoding is added."
+    missing_scrappa_key: "Live Maps scans require a configured provider key.",
+    missing_center_coordinates: "Live Maps scans require a center latitude and longitude."
   };
   return statuses[reason] || "Live scan unavailable.";
 }
@@ -191,6 +235,82 @@ async function mapWithConcurrency(items, limit, worker) {
   await Promise.all(workers);
 }
 
+async function buildScanCacheKey(input) {
+  return sha256Hex(
+    JSON.stringify({
+      businessName: input.businessName.toLowerCase(),
+      websiteUrl: input.websiteUrl.toLowerCase(),
+      mapsUrl: input.mapsUrl,
+      keyword: input.keyword.toLowerCase(),
+      city: input.city.toLowerCase(),
+      state: input.state.toLowerCase(),
+      gridSize: input.gridSize,
+      centerLat: input.centerLat,
+      centerLon: input.centerLon,
+      pointSpacingKm: input.pointSpacingKm
+    })
+  );
+}
+
+async function getCachedScan(db, orgId, cacheKey) {
+  const row = await db
+    .prepare("SELECT response_json FROM scan_cache WHERE org_id = ? AND cache_key = ? AND expires_at > ?")
+    .bind(orgId, cacheKey, nowIso())
+    .first();
+  return row ? JSON.parse(row.response_json) : null;
+}
+
+async function saveScanCache(db, orgId, cacheKey, scan, requestCredits) {
+  const createdAt = nowIso();
+  await db
+    .prepare(
+      `INSERT OR REPLACE INTO scan_cache (cache_key, org_id, response_json, provider, request_credits, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(cacheKey, orgId, JSON.stringify(stripAccount(scan)), scan.provider || "scrappa", requestCredits, createdAt, addDaysIso(1))
+    .run();
+}
+
+async function saveScanRecord(db, { auth, input, cacheKey, scan, status, requestCredits, chargedCredits }) {
+  const territory = scan.territory || {};
+  await db
+    .prepare(
+      `INSERT INTO scans
+       (id, org_id, user_id, cache_key, business_name, website_url, keyword, city, state, grid_size,
+        mode, provider, status, request_credits, charged_credits, avg_rank, coverage, weak, created_at, report_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      crypto.randomUUID(),
+      auth.account.org.id,
+      auth.account.user.id,
+      cacheKey,
+      input.businessName,
+      input.websiteUrl,
+      input.keyword,
+      input.city,
+      input.state,
+      input.gridSize,
+      scan.mode || "live",
+      scan.provider || "scrappa",
+      status,
+      requestCredits,
+      chargedCredits,
+      territory.averageRank,
+      territory.coverage,
+      territory.weak,
+      nowIso(),
+      JSON.stringify(stripAccount(scan))
+    )
+    .run();
+}
+
+function stripAccount(scan) {
+  const clone = { ...scan };
+  delete clone.account;
+  return clone;
+}
+
 function liveScansEnabled(env = {}) {
   return String(env.ENABLE_LIVE_SCANS || "").toLowerCase() === "true";
 }
@@ -199,31 +319,4 @@ function maxLiveGridPoints(env = {}) {
   const parsed = Number.parseInt(env.MAX_LIVE_GRID_POINTS, 10);
   if (!Number.isFinite(parsed)) return 81;
   return Math.max(9, Math.min(121, parsed));
-}
-
-function jsonResponse(request, env, payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      ...jsonHeaders,
-      ...corsHeaders(request, env)
-    }
-  });
-}
-
-function corsHeaders(request, env = {}) {
-  const origin = request?.headers?.get("origin") || "";
-  const allowedOrigins = new Set(
-    [
-      new URL(request?.url || "https://local-seo-ranker.pages.dev").origin,
-      ...(env.SCAN_ALLOWED_ORIGINS || "").split(",").map((item) => item.trim()).filter(Boolean)
-    ]
-  );
-  const allowOrigin = origin && allowedOrigins.has(origin) ? origin : [...allowedOrigins][0];
-  return {
-    "access-control-allow-origin": allowOrigin,
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "vary": "Origin"
-  };
 }

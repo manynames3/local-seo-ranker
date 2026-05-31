@@ -171,7 +171,7 @@ export function buildTerritoryFromRankPoints({ input, points, provider = "scrapp
     pointSpacing: `${input.pointSpacingKm} km`,
     market: `${input.city || "Target city"}, ${input.state || "State"}`,
     gridSize: `${size} x ${size}`,
-    dataStatus: provider === "scrappa" ? "Live Scrappa Maps data." : "Estimated fallback grid.",
+    dataStatus: provider === "scrappa" ? "Live Maps rank data." : "Strategy model grid.",
     provider,
     generatedAt
   };

@@ -49,14 +49,52 @@
               A market view for topical dominance, entity reinforcement, service-depth authority,
               semantic coverage, internal links, and AI-readable trust signals.
             </p>
-            <div class="hero-links" aria-label="Project links">
-              <a href="https://github.com/manynames3/local-seo-ranker" target="_blank" rel="noopener">GitHub repository</a>
-            </div>
           </div>
           <div class="hero-proof" aria-label="Current model status">
-            <span id="model-kicker">Estimated model</span>
-            <strong id="model-state">Demo mode</strong>
-            <small id="model-note">No live Google Maps data is requested in this build.</small>
+            <span id="model-kicker">Workspace status</span>
+            <strong id="model-state">Ready</strong>
+            <small id="model-note">Sign in to run live Maps scans or generate planning reports instantly.</small>
+          </div>
+        </section>
+
+        <section class="account-panel" aria-label="Account and usage">
+          <div class="account-copy">
+            <p class="eyebrow">Account</p>
+            <h2>Secure workspace access and scan credits.</h2>
+            <p>
+              Live rank checks are tied to your account, saved to scan history, and protected by monthly credits,
+              caching, and rate limits.
+            </p>
+          </div>
+
+          <form id="login-form" class="login-card">
+            <label>
+              Email
+              <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
+            </label>
+            <label>
+              Name
+              <input id="login-name" name="name" type="text" autocomplete="name" placeholder="Your name" />
+            </label>
+            <label>
+              Invite code
+              <input id="login-code" name="accessCode" type="password" autocomplete="one-time-code" placeholder="Required after first account" />
+            </label>
+            <button class="primary-action" id="login-button" type="submit">Sign in</button>
+          </form>
+
+          <div id="account-card" class="account-card is-hidden">
+            <div>
+              <span class="eyebrow">Signed in</span>
+              <strong id="account-email">--</strong>
+              <small id="account-org">--</small>
+            </div>
+            <div class="credit-meter">
+              <span>Credits</span>
+              <strong id="credit-balance">--</strong>
+              <small id="credit-period">--</small>
+            </div>
+            <button class="ghost-action" id="logout-button" type="button">Sign out</button>
           </div>
         </section>
 
@@ -102,21 +140,25 @@
               <input id="centerLon" name="centerLon" type="text" inputmode="decimal" placeholder="-84.3880" />
             </label>
           </div>
+          <div class="center-tools">
+            <button class="ghost-action" id="find-center" type="button">Find center</button>
+            <small>Uses one credit to locate the best map center from the business and market.</small>
+          </div>
 
           <fieldset class="scan-settings">
             <legend>Scan settings</legend>
             <label class="mode-option">
               <input name="scanMode" type="radio" value="estimate" checked />
               <span>
-                <strong>Demo estimate</strong>
-                <small>Instant directional report; no provider cost.</small>
+                <strong>Strategy estimate</strong>
+                <small>Instant planning report; no live rank lookup.</small>
               </span>
             </label>
             <label class="mode-option">
               <input name="scanMode" type="radio" value="live" />
               <span>
-                <strong>Live Scrappa</strong>
-                <small>Uses `/api/scans`; requires backend key, live flag, and center coordinates.</small>
+                <strong>Live Maps scan</strong>
+                <small>Uses account credits, saved history, and server-side rank checks.</small>
               </span>
             </label>
             <label class="grid-size-field">
@@ -128,7 +170,7 @@
               </select>
             </label>
             <input id="pointSpacingKm" name="pointSpacingKm" type="hidden" value="2" />
-            <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 provider requests in live mode. Backend default cap is 81.</p>
+            <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 credits for a live scan. Current account cap is 81 cells per scan.</p>
           </fieldset>
 
           <div class="competitor-fields" aria-label="Competitor URLs">
@@ -144,34 +186,70 @@
               id="notes"
               name="notes"
               rows="3"
-              placeholder="Known gaps, reviews, service pages, city pages, citations, project examples, or GBP status."
+              placeholder="Known gaps, reviews, service pages, city pages, citations, proof examples, or GBP status."
             ></textarea>
           </label>
 
           <p id="model-disclosure" class="model-disclosure">
-            Current build: generates an estimated report locally, and can call `/api/scans` when deployed with a Scrappa backend secret.
+            Planning reports run instantly. Live Maps scans require sign-in, center coordinates, and available credits.
           </p>
 
           <div id="scan-status" class="scan-status" role="status">
-            Demo estimate ready. Live mode requires `SCRAPPA_API_KEY` in Cloudflare and center coordinates.
+            Ready. Sign in to run live Maps scans, or generate a strategy report without using credits.
           </div>
 
           <div class="form-actions">
-            <button class="primary-action" id="generate-report" type="submit">Generate estimated report</button>
-            <button class="ghost-action" id="demo-button" type="button">Load sample report</button>
+            <button class="primary-action" id="generate-report" type="submit">Generate strategy report</button>
+            <button class="ghost-action" id="example-button" type="button">Load example</button>
           </div>
         </form>
 
-        <section class="about-project" aria-labelledby="about-project-title">
+        <section class="about-product" aria-labelledby="about-product-title">
           <div>
             <p class="eyebrow">About</p>
-            <h2 id="about-project-title">Built for local-business rank discovery across niches.</h2>
+            <h2 id="about-product-title">Built for local-business rank discovery across niches.</h2>
             <p>
               Use it for plumbers, electricians, photographers, restaurants, clinics, home services, and other local intent keywords.
-              Demo mode is a directional model; live mode routes Maps rank checks through the Cloudflare backend when enabled.
+              Strategy mode creates a directional market model; live mode captures Maps rank evidence through the protected scan system.
             </p>
           </div>
-          <a href="https://github.com/manynames3/local-seo-ranker" target="_blank" rel="noopener">View source on GitHub</a>
+        </section>
+
+        <section class="account-data-grid" aria-label="Saved activity and administration">
+          <article class="report-card">
+            <div class="card-header compact">
+              <div>
+                <p class="eyebrow">History</p>
+                <h3>Recent saved scans</h3>
+              </div>
+            </div>
+            <div id="scan-history" class="list-stack empty-copy">Sign in to view saved scans for this workspace.</div>
+          </article>
+
+          <article id="admin-panel" class="report-card is-hidden">
+            <div class="card-header compact">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Workspace oversight</h3>
+              </div>
+            </div>
+            <div id="admin-overview" class="pulse-grid empty-copy">Admin metrics will appear after sign-in.</div>
+          </article>
+        </section>
+
+        <section class="trust-strip" aria-label="Trust and data handling">
+          <article>
+            <h3>Server-side provider keys</h3>
+            <p>Rank provider credentials stay on the Cloudflare backend and are never exposed in browser code.</p>
+          </article>
+          <article>
+            <h3>Saved to your workspace</h3>
+            <p>Live scans, credit usage, and recent activity are scoped to the signed-in workspace.</p>
+          </article>
+          <article>
+            <h3>Clear data terms</h3>
+            <p><a href="/privacy.html">Privacy</a> and <a href="/terms.html">Terms</a> explain what is stored and how live lookups are handled.</p>
+          </article>
         </section>
 
         <section class="market-board">
@@ -192,7 +270,7 @@
             </p>
             <div id="territory-map" class="territory-map empty-map">
               <div class="empty-map-surface" aria-hidden="true"></div>
-              <p>Generate an estimated report to populate rank positions, coverage pockets, and weak zones.</p>
+              <p>Generate a strategy report to populate rank positions, coverage pockets, and weak zones.</p>
             </div>
           </article>
 
@@ -200,8 +278,8 @@
             <article class="market-card">
               <div class="card-header compact">
                 <div>
-                  <p class="eyebrow">Market pulse</p>
-                  <h3>Estimated local visibility</h3>
+                <p class="eyebrow">Market pulse</p>
+                  <h3>Local visibility</h3>
                 </div>
               </div>
               <div id="market-pulse" class="pulse-grid empty-copy">Report results will populate this panel.</div>
@@ -224,7 +302,7 @@
         <section id="scorecards" class="score-grid empty-state">
           <article>
             <span class="placeholder-kicker">Waiting for report</span>
-            <h3>Authority scores will appear here after the first estimated report.</h3>
+            <h3>Authority scores will appear here after the first report.</h3>
           </article>
         </section>
 
@@ -235,7 +313,7 @@
                 <p class="eyebrow">Competitor comparison</p>
                 <h3>Who has stronger local authority</h3>
               </div>
-              <span class="status-pill neutral">Estimated model</span>
+              <span class="status-pill neutral">Strategy model</span>
             </div>
             <div id="comparison-table" class="table-wrap empty-copy">
               Add competitor URLs to compare topical coverage, service depth, city relevance, trust, links, schema, and freshness.

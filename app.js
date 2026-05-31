@@ -1,5 +1,17 @@
 const form = document.querySelector("#seo-form");
-const demoButton = document.querySelector("#demo-button");
+const exampleButton = document.querySelector("#example-button");
+const loginForm = document.querySelector("#login-form");
+const loginButton = document.querySelector("#login-button");
+const logoutButton = document.querySelector("#logout-button");
+const accountCard = document.querySelector("#account-card");
+const accountEmail = document.querySelector("#account-email");
+const accountOrg = document.querySelector("#account-org");
+const creditBalance = document.querySelector("#credit-balance");
+const creditPeriod = document.querySelector("#credit-period");
+const findCenterButton = document.querySelector("#find-center");
+const scanHistory = document.querySelector("#scan-history");
+const adminPanel = document.querySelector("#admin-panel");
+const adminOverview = document.querySelector("#admin-overview");
 const scorecards = document.querySelector("#scorecards");
 const comparisonTable = document.querySelector("#comparison-table");
 const topicGaps = document.querySelector("#topic-gaps");
@@ -30,14 +42,15 @@ const exportButtons = {
 
 let currentReport = null;
 let isGenerating = false;
+let currentAccount = null;
 
-const estimatedModelStatus = "Demo estimate. No live Google Maps/SERP data has been requested in this build.";
+const estimatedModelStatus = "Strategy estimate. No live Google Maps/SERP data has been requested for this report.";
 
 const scoreDefinitions = [
   ["topicalAuthority", "Topical Authority Score", "Depth of service and supporting content around the target keyword."],
   ["localRelevance", "Local Relevance Score", "How clearly the site connects service intent to the target city and state."],
   ["serviceCoverage", "Service Coverage Score", "Breadth of exact-intent service, modifier, and sub-service pages."],
-  ["trustSignals", "Trust Signal Score", "Proof elements, reviews, licenses, project examples, and business identity clarity."],
+  ["trustSignals", "Trust Signal Score", "Proof elements, reviews, licenses, case examples, and business identity clarity."],
   ["internalLinking", "Internal Linking Score", "Whether authority flows from broad pages into service and city money pages."],
   ["gbpReadiness", "GBP / Maps Readiness Score", "Google Business Profile alignment, category clarity, and local prominence signals."],
   ["aiSearchReadiness", "AI Search Readiness Score", "Clear entities, proof, process, FAQs, and structured data for AI answers."],
@@ -53,7 +66,7 @@ const serviceModifiers = [
   { label: "Commercial", impact: "Medium", difficulty: "Medium", kind: "Segment" },
   { label: "Residential", impact: "Medium", difficulty: "Low", kind: "Segment" },
   { label: "Financing", impact: "Medium", difficulty: "Low", kind: "Conversion" },
-  { label: "Before and after projects", impact: "High", difficulty: "Medium", kind: "Proof" },
+  { label: "Before/after proof", impact: "High", difficulty: "Medium", kind: "Proof" },
   { label: "FAQ", impact: "Medium", difficulty: "Low", kind: "AI readiness" },
   { label: "Service process", impact: "Medium", difficulty: "Low", kind: "Trust" },
   { label: "Neighborhood service-area pages", impact: "High", difficulty: "High", kind: "Local relevance" }
@@ -67,7 +80,7 @@ const entitySignalTemplates = [
   ["Nearby neighborhood mentions", "Neighborhood and service-area references can support local relevance without doorway-page copy."],
   ["Team or about page", "People-first trust improves credibility for both search systems and homeowners."],
   ["Reviews and testimonials", "Review proof should be visible, specific, and mapped to services where appropriate."],
-  ["Project examples", "Completed work pages help prove prominence, service depth, and local experience."],
+  ["Proof examples", "Completed work, menu, portfolio, case, or customer-result pages help prove prominence and local experience."],
   ["Licenses and certifications", "Credentials should be easy to find and included in organization-level trust signals."],
   ["Service area page", "A service area hub should connect city, neighborhood, and nearby market pages."],
   ["GBP alignment", "Services, categories, descriptions, and photos should match the site content strategy."],
@@ -81,13 +94,13 @@ const aiReadinessTemplates = [
   ["Clear business identity", "AI systems should be able to name the company, location, and category with confidence."],
   ["Clear services", "Primary, secondary, and emergency services should be explicit and internally linked."],
   ["Clear service area", "Target city, nearby areas, and practical travel/service boundaries should be unambiguous."],
-  ["Clear proof", "Reviews, photos, projects, licensing, and years of experience should support authority claims."],
+  ["Clear proof", "Reviews, photos, case examples, credentials, and years of experience should support authority claims."],
   ["Clear pricing or cost guidance", "Cost ranges, factors, and quote process content help answer commercial-intent questions."],
   ["Clear process", "The site should explain inspection, scheduling, repair, replacement, financing, and follow-up steps."],
   ["Clear FAQs", "FAQ content should answer objections and long-tail questions in plain language."],
   ["Structured data", "Schema should identify the business, services, breadcrumbs, FAQs, and relevant reviews."],
   ["Author or company credibility", "About content should show who stands behind the advice and service."],
-  ["Updated content", "Fresh project examples, seasonal guidance, and current service details reduce ambiguity."]
+  ["Updated content", "Fresh proof examples, seasonal guidance, and current service details reduce ambiguity."]
 ];
 
 function normalizeText(value) {
@@ -173,13 +186,129 @@ function readInput() {
   };
 }
 
+async function apiFetch(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "include",
+    ...options,
+    headers: {
+      ...(options.body ? { "content-type": "application/json" } : {}),
+      ...(options.headers || {})
+    }
+  });
+  const payload = await response.json().catch(() => null);
+  if (!payload) {
+    throw Object.assign(new Error(`Request failed with status ${response.status}.`), { status: response.status });
+  }
+  if (!response.ok) {
+    throw Object.assign(new Error(payload.error || payload.reason || `Request failed with status ${response.status}.`), {
+      status: response.status,
+      code: payload.code || payload.reason || "",
+      payload
+    });
+  }
+  return payload;
+}
+
+function setAccount(account) {
+  currentAccount = account || null;
+  const signedIn = Boolean(currentAccount);
+  loginForm?.classList.toggle("is-hidden", signedIn);
+  accountCard?.classList.toggle("is-hidden", !signedIn);
+
+  if (!signedIn) {
+    if (scanHistory) {
+      scanHistory.className = "list-stack empty-copy";
+      scanHistory.textContent = "Sign in to view saved scans for this workspace.";
+    }
+    adminPanel?.classList.add("is-hidden");
+    return;
+  }
+
+  const credits = currentAccount.credits || {};
+  if (accountEmail) accountEmail.textContent = currentAccount.user?.email || "";
+  if (accountOrg) accountOrg.textContent = currentAccount.organization?.name || "Workspace";
+  if (creditBalance) creditBalance.textContent = `${credits.remaining ?? 0}/${credits.monthlyLimit ?? 0}`;
+  if (creditPeriod) creditPeriod.textContent = credits.periodEnd ? `Resets ${new Date(credits.periodEnd).toLocaleDateString()}` : "Current cycle";
+  loadHistory();
+  if (currentAccount.admin) {
+    adminPanel?.classList.remove("is-hidden");
+    loadAdminOverview();
+  } else {
+    adminPanel?.classList.add("is-hidden");
+  }
+}
+
+async function loadAccount() {
+  try {
+    const payload = await apiFetch("/api/auth/me");
+    setAccount(payload.account);
+  } catch {
+    setAccount(null);
+  }
+}
+
+async function loadHistory() {
+  if (!currentAccount || !scanHistory) return;
+  try {
+    const payload = await apiFetch("/api/history?limit=8");
+    renderHistory(payload.scans || []);
+  } catch (error) {
+    scanHistory.className = "list-stack empty-copy";
+    scanHistory.textContent = error.message || "Could not load scan history.";
+  }
+}
+
+function renderHistory(scans) {
+  if (!scanHistory) return;
+  if (!scans.length) {
+    scanHistory.className = "list-stack empty-copy";
+    scanHistory.textContent = "No saved scans yet. Run a live Maps scan to start building history.";
+    return;
+  }
+  scanHistory.className = "list-stack history-list";
+  scanHistory.innerHTML = scans
+    .map(
+      (scan) => `
+        <div class="history-item">
+          <div>
+            <strong>${escapeHtml(scan.businessName)}</strong>
+            <p>${escapeHtml(scan.keyword)} in ${escapeHtml(scan.city)}, ${escapeHtml(scan.state)} · ${escapeHtml(scan.gridSize)}</p>
+          </div>
+          <div>
+            <span class="mini-chip">${escapeHtml(scan.status)}</span>
+            <small>${new Date(scan.createdAt).toLocaleDateString()}</small>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+}
+
+async function loadAdminOverview() {
+  if (!currentAccount?.admin || !adminOverview) return;
+  try {
+    const payload = await apiFetch("/api/admin/overview");
+    const totals = payload.totals || {};
+    adminOverview.className = "pulse-grid";
+    adminOverview.innerHTML = `
+      <div class="pulse-metric"><span>Users</span><strong>${totals.users ?? 0}</strong><p>Total registered accounts.</p></div>
+      <div class="pulse-metric"><span>Workspaces</span><strong>${totals.organizations ?? 0}</strong><p>Active customer workspaces.</p></div>
+      <div class="pulse-metric"><span>Saved scans</span><strong>${totals.scans ?? 0}</strong><p>Scan records stored in history.</p></div>
+      <div class="pulse-metric"><span>Credits used</span><strong>${totals.creditsUsed ?? 0}</strong><p>Live lookup credits consumed.</p></div>
+    `;
+  } catch (error) {
+    adminOverview.className = "pulse-grid empty-copy";
+    adminOverview.textContent = error.message || "Could not load admin metrics.";
+  }
+}
+
 function inferInputSignals(input) {
   const notes = input.notes.toLowerCase();
   const keywordWords = input.keyword.split(/\s+/).filter(Boolean).length;
   const hasGeoKeyword = input.keyword.toLowerCase().includes(input.city.toLowerCase());
   const hasEmergencyIntent = /emergency|urgent|same day|24/.test(input.keyword.toLowerCase());
-  const hasTrustHints = /review|license|certif|project|photo|testimonial|insured|warranty/.test(notes);
-  const hasContentHints = /blog|guide|faq|city|service area|neighborhood|case study|project/.test(notes);
+  const hasTrustHints = /review|license|certif|case|photo|testimonial|insured|warranty|portfolio/.test(notes);
+  const hasContentHints = /blog|guide|faq|city|service area|neighborhood|case study|proof|portfolio/.test(notes);
   const hasGbpHints = /gbp|google business|maps|profile|citation|nap/.test(notes) || Boolean(input.mapsUrl);
   const competitorCount = input.competitors.length;
 
@@ -312,8 +441,8 @@ function buildTopicGaps(input, scores) {
           ? `${keyword} cost guide in ${city}`
           : item.label === "FAQ"
             ? `${keyword} FAQ for ${city} customers`
-            : item.label === "Before and after projects"
-              ? `${city} ${keyword} project examples`
+            : item.label === "Before/after proof"
+              ? `${city} ${keyword} proof examples`
               : item.label === "Neighborhood service-area pages"
                 ? `${city} neighborhood and service-area pages`
                 : `${item.label} ${keyword}`,
@@ -340,7 +469,7 @@ function topicWhy(label, keyword, city) {
     Commercial: `Commercial content separates business-intent searches from residential needs and can improve service-depth coverage.`,
     Residential: `Residential content clarifies homeowner fit, process, proof, and common repair scenarios.`,
     Financing: `Financing content reduces conversion friction and can support trust and affordability questions.`,
-    "Before and after projects": `Project pages provide local proof, visual trust, and internal links back to ${keyword} and ${city} pages.`,
+    "Before/after proof": `Proof pages provide local evidence, visual trust, and internal links back to ${keyword} and ${city} pages.`,
     FAQ: `FAQ content improves long-tail coverage and makes answers easier for AI search systems to cite or summarize.`,
     "Service process": `Process content builds confidence by explaining what happens before, during, and after the job.`,
     "Neighborhood service-area pages": `Neighborhood pages can support local relevance when they provide real service-area context, proof, and unique usefulness.`
@@ -384,7 +513,7 @@ function actionForSignal(name, input, signals) {
   if (name.includes("City")) return `Add natural ${city} references to the homepage, main ${keyword} page, and proof sections.`;
   if (name.includes("GBP")) return "Align GBP categories, services, description, photos, and landing pages with the site strategy.";
   if (name.includes("schema")) return "Add or audit structured data after the page hierarchy is finalized.";
-  if (name.includes("Project")) return `Publish local ${keyword} project examples with photos, scope, location context, and links.`;
+  if (name.includes("Proof")) return `Publish local ${keyword} proof examples with photos, context, outcomes, and links.`;
   if (name.includes("Reviews")) return "Surface specific review themes near matching service pages and conversion points.";
   if (name.includes("Address")) return "Make NAP details crawlable and consistent across site, GBP, and citations.";
   if (signals.hasTrustHints) return "Audit current proof and make it more visible on money pages.";
@@ -424,7 +553,7 @@ function buildInternalLinks(input) {
       difficulty: "Low"
     },
     {
-      from: "Project pages",
+      from: "Proof pages",
       to: `${keyword} + ${city} pages`,
       why: "Use local proof to reinforce service authority and location relevance.",
       impact: "High",
@@ -462,7 +591,7 @@ function aiAction(name, input) {
   const city = input.city || "target city";
   if (name.includes("services")) return `Create a clear service taxonomy for ${keyword}, modifiers, and supporting pages.`;
   if (name.includes("area")) return `State the ${city} service area clearly and link to nearby markets only when useful.`;
-  if (name.includes("proof")) return "Attach proof to claims: reviews, projects, photos, credentials, and warranties.";
+  if (name.includes("proof")) return "Attach proof to claims: reviews, photos, credentials, policies, and outcomes.";
   if (name.includes("pricing")) return "Publish cost factors, quote process, and ranges where legally and commercially appropriate.";
   if (name.includes("Structured")) return "Use schema only to describe real visible page content.";
   return "Make the answer explicit in visible copy, then support it with structure and internal links.";
@@ -499,7 +628,7 @@ function buildRoadmap(input, scores, topicItems, linkItems) {
     {
       group: "Build this month",
       name: `Publish ${city} ${keyword} proof pages`,
-      why: "Project examples connect local proof, trust signals, entity clarity, and internal links.",
+      why: "Proof examples connect local evidence, trust signals, entity clarity, and internal links.",
       impact: "High",
       difficulty: "Medium",
       priority: priorityValue("High", "Medium", scores.trustSignals < 60 ? 8 : 0)
@@ -655,14 +784,15 @@ function analyzeLocalSeo(input) {
     territory,
     scan: {
       mode: "estimate",
-      provider: "client-estimate",
+      provider: "strategy-model",
       requestCostCredits: 0,
+      chargedCredits: 0,
       reason: "estimate_mode"
     },
     futureIntegrations: [
       "Google Search Console API",
       "Google Business Profile API",
-      "Scrappa Maps/SERP API",
+      "Live Maps/SERP provider API",
       "PageSpeed Insights API",
       "Firecrawl, Crawl4AI, or site crawler",
       "Ahrefs, Semrush, or DataForSEO",
@@ -678,8 +808,8 @@ function renderReport(report) {
   const live = report.scan?.mode === "live";
   reportTitle.textContent = `${input.city}, ${input.state}: ${input.keyword} territory`;
   reportSubtitle.textContent = live
-    ? `${input.businessName || domainFromUrl(input.websiteUrl)} is mapped from live Scrappa rank checks and interpreted against topical, entity, service-depth, internal link, GBP, and AI-readable trust signals.`
-    : `${input.businessName || domainFromUrl(input.websiteUrl)} is being estimated against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust. Use live Scrappa mode before presenting the grid as Google ranking evidence.`;
+    ? `${input.businessName || domainFromUrl(input.websiteUrl)} is mapped from live Maps rank checks and interpreted against topical, entity, service-depth, internal link, GBP, and AI-readable trust signals.`
+    : `${input.businessName || domainFromUrl(input.websiteUrl)} is modeled against competitors for topical dominance, entity clarity, service-depth authority, internal links, GBP readiness, and AI-readable trust. Run a live Maps scan before presenting the grid as observed ranking evidence.`;
   totalScore.textContent = scores.totalOpportunity;
   renderTerritory(report);
   renderMarketPulse(report);
@@ -698,15 +828,15 @@ function renderTerritory(report) {
   const territory = report.territory;
   const generatedDate = new Date(report.generatedAt).toLocaleDateString();
   const live = report.scan?.mode === "live";
-  const badge = live ? "Live Scrappa" : "Demo estimate";
-  const rankWord = live ? "Live" : "Estimated demo";
-  const surfaceTitle = live ? "Live rank grid" : "Estimated territory grid";
+  const badge = live ? "Live Maps" : "Strategy estimate";
+  const rankWord = live ? "Live" : "Modeled";
+  const surfaceTitle = live ? "Live rank grid" : "Strategy territory grid";
   const surfaceNote = live
     ? "Live Maps rank cells. This is a grid visualization, not an embedded map tile."
-    : "Illustrative estimate. This is not a real map tile or live Google Maps ranking.";
+    : "Modeled planning view. This is not a live Google Maps screenshot.";
   const providerNote = live
-    ? `${territory.rankPoints} Scrappa Maps requests. Matched cells show observed rank; 20+ means not found in returned results.`
-    : "Live Scrappa rank evidence not connected for this report.";
+    ? `${territory.rankPoints} live rank checks. Matched cells show observed rank; 20+ means not found in returned results.`
+    : "Live rank evidence has not been requested for this report.";
   territoryMap.className = "territory-map";
   territoryMap.innerHTML = `
     <div class="territory-shell ranking-shell">
@@ -790,7 +920,7 @@ function renderMarketPulse(report) {
     .sort((a, b) => b.overallStrength - a.overallStrength)[0];
   const live = report.scan?.mode === "live";
   const confidence = live
-    ? "Live Scrappa evidence"
+    ? "Live Maps evidence"
     : report.input.competitors.length >= 3
       ? "Strong input set"
       : report.input.competitors.length
@@ -1050,13 +1180,13 @@ function setFormBusy(enabled, input = readInput()) {
     submitButton.disabled = enabled;
     submitButton.textContent = enabled
       ? input.scanMode === "live"
-        ? "Running live scan..."
+        ? "Running live Maps scan..."
         : "Generating..."
       : input.scanMode === "live"
-        ? "Run live Scrappa scan"
-        : "Generate estimated report";
+        ? "Run live Maps scan"
+        : "Generate strategy report";
   }
-  demoButton.disabled = enabled;
+  exampleButton.disabled = enabled;
 }
 
 function setScanStatus(message, tone = "neutral") {
@@ -1065,7 +1195,7 @@ function setScanStatus(message, tone = "neutral") {
   scanStatus.className = `scan-status${tone === "live" ? " is-live" : tone === "warning" ? " is-warning" : tone === "error" ? " is-error" : ""}`;
 }
 
-function setModelStatusUI({ kicker = "Estimated model", state = "Demo mode", note = "No live Google Maps data is requested in this build." } = {}) {
+function setModelStatusUI({ kicker = "Workspace status", state = "Ready", note = "Sign in to run live Maps scans or generate planning reports instantly." } = {}) {
   if (modelKicker) modelKicker.textContent = kicker;
   if (modelState) modelState.textContent = state;
   if (modelNote) modelNote.textContent = note;
@@ -1077,9 +1207,9 @@ function updateCostEstimate() {
   if (costEstimate) {
     const capNote =
       input.scanMode === "live" && requests > 81
-        ? " Backend default cap is 81 until MAX_LIVE_GRID_POINTS is raised."
-        : " Backend default cap is 81.";
-    costEstimate.textContent = `${input.gridSize} x ${input.gridSize} grid = ${requests} provider requests in live mode.${capNote}`;
+        ? " Choose 7x7 or 9x9 for the current account cap."
+        : " Current account cap is 81 cells per scan.";
+    costEstimate.textContent = `${input.gridSize} x ${input.gridSize} grid = ${requests} credits for a live Maps scan.${capNote}`;
   }
   setFormBusy(false, input);
 }
@@ -1098,8 +1228,8 @@ function reportToText(report) {
     `Local SEO Ranker Territory Report`,
     `Generated: ${new Date(report.generatedAt).toLocaleString()}`,
     `Status: ${report.modelStatus}`,
-    `Provider: ${report.scan?.provider || report.territory.provider || "client-estimate"}`,
-    `Provider requests: ${report.scan?.requestCostCredits ?? 0}`,
+    `Evidence source: ${report.scan?.mode === "live" ? "Live Maps scan" : "Strategy model"}`,
+    `Credits charged: ${report.scan?.chargedCredits ?? 0}`,
     ``,
     `Business: ${report.input.businessName}`,
     `Website: ${report.input.websiteUrl}`,
@@ -1135,12 +1265,12 @@ function reportToText(report) {
 
 function reportToCsv(report) {
   const rows = [["Section", "Item", "Score or Priority", "Impact", "Difficulty", "Notes"]];
-  rows.push(["Scan", "Provider", report.scan?.provider || report.territory.provider || "client-estimate", "", "", report.modelStatus]);
-  rows.push(["Scan", "Provider requests", report.scan?.requestCostCredits ?? 0, "", "", report.scan?.reason || ""]);
+  rows.push(["Scan", "Evidence source", report.scan?.mode === "live" ? "Live Maps scan" : "Strategy model", "", "", report.modelStatus]);
+  rows.push(["Scan", "Credits charged", report.scan?.chargedCredits ?? 0, "", "", report.scan?.reason || ""]);
   rows.push(["Territory", "Average grid rank", report.territory.averageRank, "", "", report.territory.dataStatus]);
-  rows.push(["Territory", "Local pack coverage", `${report.territory.coverage}%`, "", "", `${report.territory.wins} estimated cells in positions 1-3`]);
+  rows.push(["Territory", "Local pack coverage", `${report.territory.coverage}%`, "", "", `${report.territory.wins} cells in positions 1-3`]);
   rows.push(["Territory", "Coverage pressure", `${report.territory.contested}%`, "", "", "Near-win, contested, or weak cells"]);
-  rows.push(["Territory", "Weak pockets", report.territory.weak, "", "", `Estimated radius ${report.territory.radius}`]);
+  rows.push(["Territory", "Weak pockets", report.territory.weak, "", "", `Radius ${report.territory.radius}`]);
   scoreDefinitions.forEach(([key, label, description]) => {
     rows.push(["Score", label, report.scores[key], "", "", description]);
   });
@@ -1185,6 +1315,7 @@ function showToast(message) {
 async function requestProviderScan(input) {
   const response = await fetch("/api/scans", {
     method: "POST",
+    credentials: "include",
     headers: {
       "content-type": "application/json"
     },
@@ -1194,8 +1325,12 @@ async function requestProviderScan(input) {
   if (!payload) {
     throw new Error(`Scan API returned ${response.status}.`);
   }
-  if (!response.ok && payload.mode !== "unavailable") {
-    throw new Error(payload.error || payload.reason || `Scan API returned ${response.status}.`);
+  if (!response.ok) {
+    throw Object.assign(new Error(liveUnavailableMessage(payload.code || payload.reason) || payload.error || `Scan API returned ${response.status}.`), {
+      status: response.status,
+      code: payload.code || payload.reason || "",
+      payload
+    });
   }
   return payload;
 }
@@ -1205,8 +1340,13 @@ function applyProviderScan(report, scanResult) {
     mode: scanResult.mode === "live" ? "live" : "estimate",
     provider: scanResult.provider || "scrappa",
     requestCostCredits: scanResult.requestCostCredits || 0,
+    chargedCredits: scanResult.chargedCredits || 0,
     reason: scanResult.reason || ""
   };
+
+  if (scanResult.account) {
+    setAccount(scanResult.account);
+  }
 
   if (scanResult.mode === "live" && scanResult.territory) {
     report.territory = scanResult.territory;
@@ -1221,14 +1361,20 @@ function applyProviderScan(report, scanResult) {
 
 function liveUnavailableMessage(reason) {
   const messages = {
-    live_scans_disabled: "Live Scrappa scans are disabled on this deployment. Set ENABLE_LIVE_SCANS=true after cost controls are configured. Showing the estimated report instead.",
-    grid_too_large: "This grid is above the backend live-scan cap. Choose 7x7 or 9x9, or raise MAX_LIVE_GRID_POINTS. Showing the estimated report instead.",
-    missing_scrappa_key: "Live Scrappa scans require SCRAPPA_API_KEY on the Cloudflare backend. Showing the estimated report instead.",
-    missing_center_coordinates: "Live Scrappa scans require center latitude and longitude. Showing the estimated report instead.",
+    auth_required: "Sign in before running a live Maps scan.",
+    session_expired: "Your session expired. Sign in again to continue.",
+    insufficient_credits: "Not enough credits remain for this live scan.",
+    rate_limited: "Too many live lookups were requested in a short period. Try again later.",
+    live_scans_disabled: "Live Maps scans are not available right now.",
+    grid_too_large: "This grid is above the current live-scan cap. Choose 7x7 or 9x9.",
+    missing_scrappa_key: "Live Maps scans are not configured yet.",
+    missing_provider_key: "Live lookup provider is not configured yet.",
+    missing_center_coordinates: "Live Maps scans require center latitude and longitude. Use Find center or enter coordinates.",
+    db_missing: "Account storage is not configured yet.",
     estimate_mode: estimatedModelStatus,
-    api_unavailable: "The scan API is not available in this local/static environment. Showing the estimated report instead."
+    api_unavailable: "Live Maps scanning is temporarily unavailable."
   };
-  return messages[reason] || "Live scan unavailable. Showing the estimated report instead.";
+  return messages[reason] || "Live Maps scan unavailable.";
 }
 
 form.addEventListener("submit", async (event) => {
@@ -1241,35 +1387,39 @@ form.addEventListener("submit", async (event) => {
     let report = analyzeLocalSeo(input);
 
     if (input.scanMode === "live") {
-      setScanStatus("Requesting live Scrappa scan from `/api/scans`...", "warning");
+      if (!currentAccount) {
+        setScanStatus("Sign in before running a live Maps scan.", "error");
+        setModelStatusUI({ kicker: "Action needed", state: "Sign in", note: "Live rank checks are tied to account credits and saved history." });
+        showToast("Sign in before running a live Maps scan.");
+        return;
+      }
+      setScanStatus("Running live Maps scan...", "warning");
       try {
         const scanResult = await requestProviderScan(input);
         const resultMode = applyProviderScan(report, scanResult);
         if (resultMode === "live") {
-          setScanStatus(`Live Scrappa scan complete. ${report.scan.requestCostCredits} provider requests used.`, "live");
-          setModelStatusUI({ kicker: "Live data", state: "Scrappa", note: `${report.scan.requestCostCredits} provider requests used.` });
-          showToast("Live Scrappa report generated.");
+          const charged = report.scan.chargedCredits ?? report.scan.requestCostCredits;
+          setScanStatus(`Live Maps scan complete. ${charged} credits used.`, "live");
+          setModelStatusUI({ kicker: "Live data", state: "Maps scan", note: `${charged} credits used. Results saved to history.` });
+          showToast("Live Maps report generated.");
+          loadHistory();
         } else {
           setScanStatus(report.modelStatus, "warning");
-          setModelStatusUI({ kicker: "Fallback", state: "Estimate", note: report.modelStatus });
-          showToast("Live scan unavailable. Estimated report generated.");
+          setModelStatusUI({ kicker: "Strategy model", state: "Not live", note: report.modelStatus });
+          showToast("Strategy report generated.");
         }
       } catch (error) {
-        report.modelStatus = liveUnavailableMessage("api_unavailable");
-        report.scan = {
-          mode: "estimate",
-          provider: "client-estimate",
-          requestCostCredits: input.gridSize * input.gridSize,
-          reason: error instanceof Error ? error.message : "api_unavailable"
-        };
-        setScanStatus(report.modelStatus, "warning");
-        setModelStatusUI({ kicker: "Fallback", state: "Estimate", note: report.modelStatus });
-        showToast("Scan API unavailable. Estimated report generated.");
+        const reason = error.code || error.payload?.code || error.payload?.reason || "api_unavailable";
+        const message = liveUnavailableMessage(reason);
+        setScanStatus(message, "error");
+        setModelStatusUI({ kicker: "Live scan", state: "Needs attention", note: message });
+        showToast(message);
+        return;
       }
     } else {
       setScanStatus(estimatedModelStatus, "neutral");
-      setModelStatusUI();
-      showToast("Estimated report generated.");
+      setModelStatusUI({ kicker: "Strategy model", state: "Ready", note: "Planning report generated without using live scan credits." });
+      showToast("Strategy report generated.");
     }
 
     renderReport(report);
@@ -1282,12 +1432,12 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-demoButton.addEventListener("click", () => {
-  loadDemo();
+exampleButton.addEventListener("click", () => {
+  loadExample();
 });
 
-function loadDemo() {
-  const demo = {
+function loadExample() {
+  const example = {
     websiteUrl: "https://atlanta-hometownroofing.example",
     businessName: "Hometown Roofing Atlanta",
     city: "Atlanta",
@@ -1303,15 +1453,97 @@ function loadDemo() {
     competitor2: "https://stormroofatlanta.example",
     competitor3: "https://georgiaroofexperts.example",
     notes:
-      "GBP exists, but service pages are thin. Good reviews and licenses. Need neighborhood pages, project examples, cost guide, and stronger internal links."
+      "GBP exists, but service pages are thin. Good reviews and licenses. Need neighborhood pages, proof examples, cost guide, and stronger internal links."
   };
-  Object.entries(demo).forEach(([key, value]) => {
+  Object.entries(example).forEach(([key, value]) => {
     const field = form.elements.namedItem(key);
     if (field) field.value = value;
   });
   updateCostEstimate();
   form.requestSubmit();
 }
+
+loginForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (loginButton) loginButton.disabled = true;
+  const data = new FormData(loginForm);
+  try {
+    const payload = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizeText(data.get("email")),
+        name: normalizeText(data.get("name")),
+        accessCode: normalizeText(data.get("accessCode"))
+      })
+    });
+    setAccount(payload.account);
+    setModelStatusUI({ kicker: "Workspace", state: "Signed in", note: "Live Maps scans are available when credits and coordinates are ready." });
+    setScanStatus("Signed in. Live Maps scans will be saved to this workspace.", "live");
+    showToast("Signed in.");
+  } catch (error) {
+    const message = error.code === "invalid_access_code" ? "Enter a valid invite code for this workspace." : error.message || "Could not sign in.";
+    setScanStatus(message, "error");
+    showToast(message);
+  } finally {
+    if (loginButton) loginButton.disabled = false;
+  }
+});
+
+logoutButton?.addEventListener("click", async () => {
+  logoutButton.disabled = true;
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+    setAccount(null);
+    setModelStatusUI();
+    setScanStatus("Signed out. Strategy reports are still available without credits.", "neutral");
+    showToast("Signed out.");
+  } catch (error) {
+    showToast(error.message || "Could not sign out.");
+  } finally {
+    logoutButton.disabled = false;
+  }
+});
+
+findCenterButton?.addEventListener("click", async () => {
+  const input = readInput();
+  if (!currentAccount) {
+    setScanStatus("Sign in before finding a live map center.", "error");
+    showToast("Sign in before finding a live map center.");
+    return;
+  }
+  if (!input.businessName || !input.city || !input.state) {
+    setScanStatus("Business name, city, and state are required to find a map center.", "error");
+    showToast("Add business name, city, and state first.");
+    return;
+  }
+
+  findCenterButton.disabled = true;
+  setScanStatus("Finding map center...", "warning");
+  try {
+    const payload = await apiFetch("/api/geocode", {
+      method: "POST",
+      body: JSON.stringify({
+        businessName: input.businessName,
+        city: input.city,
+        state: input.state
+      })
+    });
+    const selected = payload.selected;
+    form.elements.namedItem("centerLat").value = selected.lat;
+    form.elements.namedItem("centerLon").value = selected.lon;
+    if (payload.account) setAccount(payload.account);
+    const charged = payload.chargedCredits || 0;
+    setScanStatus(`Map center found for ${selected.name || input.businessName}. ${charged} credit${charged === 1 ? "" : "s"} used.`, "live");
+    setModelStatusUI({ kicker: "Map center", state: "Found", note: selected.address || `${selected.lat}, ${selected.lon}` });
+    showToast("Map center found.");
+  } catch (error) {
+    const message = liveUnavailableMessage(error.code || error.payload?.code) || error.message || "Could not find a map center.";
+    setScanStatus(message, "error");
+    showToast(message);
+  } finally {
+    findCenterButton.disabled = false;
+  }
+});
 
 gridSizeField?.addEventListener("change", updateCostEstimate);
 scanModeControls.forEach((control) => {
@@ -1320,22 +1552,24 @@ scanModeControls.forEach((control) => {
     setFormBusy(false, input);
     setScanStatus(
       input.scanMode === "live"
-        ? "Live mode will call `/api/scans`; center coordinates and SCRAPPA_API_KEY are required."
+        ? "Live Maps scans use account credits and require center coordinates."
         : estimatedModelStatus,
       input.scanMode === "live" ? "warning" : "neutral"
     );
     setModelStatusUI(
       input.scanMode === "live"
-        ? { kicker: "Live mode", state: "Scrappa", note: "Requires backend key and center coordinates." }
+        ? { kicker: "Live mode", state: "Maps scan", note: "Sign in, confirm center coordinates, then run the scan." }
         : undefined
     );
     updateCostEstimate();
   });
 });
 updateCostEstimate();
+loadAccount();
 
-if (new URLSearchParams(window.location.search).get("demo") === "1") {
-  loadDemo();
+const initialParams = new URLSearchParams(window.location.search);
+if (initialParams.get("example") === "1") {
+  loadExample();
 }
 
 exportButtons.copy.addEventListener("click", async () => {

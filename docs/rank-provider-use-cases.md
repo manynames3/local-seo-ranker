@@ -1,6 +1,6 @@
 # Rank Provider Use Cases
 
-This project should use Scrappa as the first live rank-check provider. The product needs affordable, coordinate-based Google Maps/SERP checks before it needs a heavier enterprise SEO data stack.
+Local SEO Ranker should use Scrappa as the first live rank-check provider. The product needs affordable, coordinate-based Google Maps/SERP checks before it needs a heavier enterprise SEO data stack.
 
 Pricing and endpoint details can change, so verify provider docs before production launch or billing changes.
 
@@ -8,7 +8,7 @@ Pricing and endpoint details can change, so verify provider docs before producti
 
 | Provider | Role in this product | Best use case | Ideal scenario |
 | --- | --- | --- | --- |
-| Scrappa | Primary MVP provider | Low-cost Google Maps and SERP checks for local ranking grids | On-demand 7 x 7, 9 x 9, or 11 x 11 geo-grid scans for agencies, demos, and first paying users |
+| Scrappa | Primary MVP provider | Low-cost Google Maps and SERP checks for local ranking grids | On-demand 7 x 7, 9 x 9, or 11 x 11 geo-grid scans for agencies and first paying users |
 | SerpBase | Backup and comparison provider | Low-cost SERP and Maps fallback when Scrappa needs validation or redundancy | A second adapter for cross-checking ranks, uptime fallback, and comparing Maps result consistency |
 | DataForSEO | Pro/scale provider | Higher-confidence SEO data workflows with mature queue/live modes and broader SEO APIs | Recurring client rank tracking, scheduled scans, deeper SEO enrichment, and agency-grade reporting |
 

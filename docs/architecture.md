@@ -2,48 +2,59 @@
 
 ## Overview
 
-Local SEO Ranker is a static Cloudflare Pages application with a small server-side scan boundary implemented as Cloudflare Pages Functions. The frontend can generate deterministic estimated reports entirely in the browser. When live mode is enabled, the browser sends scan inputs to `/api/scans`, where the backend validates cost controls, generates a coordinate grid, calls Scrappa Maps Advanced Search, normalizes the provider response, and returns the same `territory` shape used by demo reports.
-
-The system is intentionally lightweight: there is no database, account system, queue, or saved-report layer yet. That keeps the demo fast and reviewable while leaving clear extension points for persistence, caching, billing, and additional rank providers.
+Local SEO Ranker is a Cloudflare Pages application with a static frontend, Pages Functions backend, and Cloudflare D1 persistence. The frontend can generate strategy reports in the browser. Live Maps scans, geocoding, auth, credits, scan history, caching, rate limits, and admin metrics run through server-side Functions so provider credentials and account state never move into browser code.
 
 ## C4-Style Container Diagram
 
 ```mermaid
 flowchart LR
-  user["Agency user or reviewer"]
+  user["End user"]
+  admin["Admin user"]
 
-  subgraph pages["Cloudflare Pages project"]
+  subgraph pages["Cloudflare Pages"]
     staticSite["Static frontend<br/>index.html, styles.css, app.js"]
-    scanFunction["Pages Function<br/>/api/scans"]
-    scanUtils["Scan utilities<br/>grid generation, matching, normalization"]
+    authApi["Auth Functions<br/>/api/auth/*"]
+    scanApi["Scan Function<br/>/api/scans"]
+    geocodeApi["Geocode Function<br/>/api/geocode"]
+    historyApi["History/Admin Functions<br/>/api/history, /api/admin/overview"]
+    libs["Shared libraries<br/>auth, db, http, scan-utils"]
   end
 
-  scrappa["Scrappa Maps API<br/>Google Maps rank data"]
+  d1["Cloudflare D1<br/>users, sessions, credits, scans, cache"]
+  scrappa["Scrappa Maps API<br/>Maps rank and location data"]
   github["GitHub repository<br/>main branch"]
   cloudflare["Cloudflare Pages deploy pipeline"]
 
-  user -->|"Open demo and enter scan inputs"| staticSite
-  staticSite -->|"Estimated mode renders locally"| staticSite
-  staticSite -->|"Live mode POST /api/scans"| scanFunction
-  scanFunction -->|"Generate grid and match results"| scanUtils
-  scanFunction -->|"Server-side API key request"| scrappa
-  scanFunction -->|"Normalized territory response"| staticSite
+  user -->|"Open app"| staticSite
+  staticSite -->|"Strategy report renders locally"| staticSite
+  staticSite -->|"Sign in / sign out"| authApi
+  staticSite -->|"Find center"| geocodeApi
+  staticSite -->|"Run live Maps scan"| scanApi
+  staticSite -->|"Load scan history"| historyApi
+  admin -->|"View overview"| historyApi
+  authApi --> libs
+  scanApi --> libs
+  geocodeApi --> libs
+  historyApi --> libs
+  libs --> d1
+  scanApi -->|"Server-side API key request"| scrappa
+  geocodeApi -->|"Server-side API key request"| scrappa
   github -->|"Source deployment"| cloudflare
-  cloudflare -->|"Publishes static assets and Functions"| pages
+  cloudflare -->|"Publishes assets and Functions"| pages
 ```
 
 ## Runtime Flow
 
 1. The user opens the Cloudflare Pages site.
-2. The frontend reads form inputs for business, website, keyword, city, state, competitors, optional Maps URL, grid size, and center coordinates.
-3. In estimate mode, `app.js` generates a deterministic report and local rank grid without network provider calls.
-4. In live mode, the frontend posts the same scan inputs to `/api/scans`.
-5. The Pages Function validates required fields, `ENABLE_LIVE_SCANS`, `SCRAPPA_API_KEY`, grid size, and center coordinates.
-6. The backend generates the coordinate grid with `functions/_lib/scan-utils.js`.
-7. The backend calls Scrappa once per grid point with bounded concurrency.
-8. Provider results are matched against the target business by Maps identifier, domain, and normalized business name.
-9. The Function returns a normalized `territory` object to the browser.
-10. The frontend renders the report and enables copy, JSON, CSV, and print exports.
+2. The frontend checks `/api/auth/me` for an existing HTTP-only session.
+3. The user can generate a strategy report locally without provider calls.
+4. For live work, the user signs in through `/api/auth/login`.
+5. The backend creates or resumes a D1 user, organization, membership, subscription, and session.
+6. The user can call `/api/geocode` to find center coordinates; the backend checks auth, rate limits, cache, credits, and then calls the Maps provider if needed.
+7. The user calls `/api/scans` for a live Maps scan; the backend checks auth, live-scan flag, provider key, grid cap, coordinates, rate limits, cache, and credit balance.
+8. The scan Function generates a coordinate grid, calls the provider with bounded concurrency, matches returned businesses, stores scan/cache records, and returns a normalized `territory` object.
+9. The frontend renders the local ranking view and report sections, then refreshes account credits and scan history.
+10. Admin users can load `/api/admin/overview` for account, workspace, scan, subscription, and usage totals.
 
 ## Deployment Shape
 
@@ -52,22 +63,25 @@ flowchart LR
 - Build command: none.
 - Output directory: `.`.
 - Server runtime: Cloudflare Pages Functions under `functions/`.
-- Live demo: [https://local-seo-ranker.pages.dev](https://local-seo-ranker.pages.dev).
+- Database: Cloudflare D1 binding named `DB`.
+- Live app: [https://local-seo-ranker.pages.dev](https://local-seo-ranker.pages.dev).
 
 ## Key Constraints
 
-- No provider API keys can be exposed to the browser.
-- Live scans require `ENABLE_LIVE_SCANS=true`; a Scrappa key alone is not enough.
+- Provider API keys must never be exposed to browser code.
+- Live scans require an authenticated account and available credits.
+- Live scans require `ENABLE_LIVE_SCANS=true`; a provider key alone is not enough.
 - The default live-scan cap is 81 grid points.
+- Duplicate live scans can use a one-day workspace cache.
+- Geocode lookups use a 30-day workspace cache.
 - API responses are marked `no-store`.
 - CORS is limited to the request origin and optional configured origins.
-- The app currently has no persistence, auth, billing, queue, or historical scan storage.
-- Demo mode must remain clearly labeled as an estimate.
+- The first account can bootstrap admin access only while the user table is empty and no invite code is configured.
 
 ## Extension Points
 
-- Add persistence and duplicate-request caching behind `/api/scans`.
-- Add user auth and per-account scan credits before public self-serve use.
-- Add geocoding so users can enter an address instead of latitude and longitude.
-- Add provider adapters for SerpBase or DataForSEO using the same normalized `territory` model.
-- Add scheduled scans and report history after persistence exists.
+- Stripe subscription and plan lifecycle integration.
+- Passwordless email login and team invitations.
+- Scheduled recurring scans and trend charts.
+- Provider adapter interface for SerpBase and DataForSEO.
+- Manual QA workflow to compare provider ranks against observed Google Maps checks.
