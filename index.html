@@ -113,7 +113,7 @@
               <input name="scanMode" type="radio" value="live" />
               <span>
                 <strong>Live Scrappa</strong>
-                <small>Uses `/api/scans`; requires backend key and center coordinates.</small>
+                <small>Uses `/api/scans`; requires backend key, live flag, and center coordinates.</small>
               </span>
             </label>
             <label class="grid-size-field">
@@ -125,7 +125,7 @@
               </select>
             </label>
             <input id="pointSpacingKm" name="pointSpacingKm" type="hidden" value="2" />
-            <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 provider requests in live mode.</p>
+            <p id="cost-estimate" class="cost-estimate">9 x 9 grid = 81 provider requests in live mode. Backend default cap is 81.</p>
           </fieldset>
 
           <div class="competitor-fields" aria-label="Competitor URLs">

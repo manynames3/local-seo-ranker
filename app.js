@@ -1069,7 +1069,11 @@ function updateCostEstimate() {
   const input = readInput();
   const requests = input.gridSize * input.gridSize;
   if (costEstimate) {
-    costEstimate.textContent = `${input.gridSize} x ${input.gridSize} grid = ${requests} provider requests in live mode.`;
+    const capNote =
+      input.scanMode === "live" && requests > 81
+        ? " Backend default cap is 81 until MAX_LIVE_GRID_POINTS is raised."
+        : " Backend default cap is 81.";
+    costEstimate.textContent = `${input.gridSize} x ${input.gridSize} grid = ${requests} provider requests in live mode.${capNote}`;
   }
   setFormBusy(false, input);
 }
@@ -1211,6 +1215,8 @@ function applyProviderScan(report, scanResult) {
 
 function liveUnavailableMessage(reason) {
   const messages = {
+    live_scans_disabled: "Live Scrappa scans are disabled on this deployment. Set ENABLE_LIVE_SCANS=true after cost controls are configured. Showing the estimated report instead.",
+    grid_too_large: "This grid is above the backend live-scan cap. Choose 7x7 or 9x9, or raise MAX_LIVE_GRID_POINTS. Showing the estimated report instead.",
     missing_scrappa_key: "Live Scrappa scans require SCRAPPA_API_KEY on the Cloudflare backend. Showing the estimated report instead.",
     missing_center_coordinates: "Live Scrappa scans require center latitude and longitude. Showing the estimated report instead.",
     estimate_mode: estimatedModelStatus,

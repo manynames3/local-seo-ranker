@@ -37,7 +37,8 @@ Use cases in Local SEO Ranker:
 Watch-outs:
 
 - Validate rank consistency against manual checks before selling it as exact.
-- Set daily spend limits and per-scan grid limits.
+- Keep `ENABLE_LIVE_SCANS=false` until the deployment has a Scrappa key, origin allowlist, and live-scan cost cap configured.
+- Set daily spend limits and per-scan grid limits. The current backend defaults to `MAX_LIVE_GRID_POINTS=81`.
 - Cache identical scans to avoid accidental duplicate billing.
 - Keep Scrappa behind a backend route so API keys never reach the browser.
 
@@ -143,7 +144,8 @@ Current implementation status:
 2. Grid coordinates are generated server-side from center latitude, longitude, grid size, and spacing.
 3. Scrappa API keys are expected to be stored as Cloudflare secrets.
 4. Scrappa responses are normalized into the existing territory/rank-cell shape.
-5. The frontend falls back to an explicitly labeled estimate if live mode is unavailable.
+5. Live mode requires `ENABLE_LIVE_SCANS=true` and defaults to an 81-point cap.
+6. The frontend falls back to an explicitly labeled estimate if live mode is unavailable.
 
 Recommended next rollout:
 

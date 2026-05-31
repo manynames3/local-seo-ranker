@@ -12,41 +12,53 @@ const jsonHeaders = {
   "cache-control": "no-store"
 };
 
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function onRequestOptions({ request, env = {} }) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, env) });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env = {} }) {
   let body;
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+    return jsonResponse(request, env, { error: "Request body must be valid JSON." }, 400);
   }
 
   const input = normalizeScanInput(body);
   const missing = requiredFields(input);
   if (missing.length) {
-    return jsonResponse({ error: "Missing required fields.", missing }, 400);
+    return jsonResponse(request, env, { error: "Missing required fields.", missing }, 400);
   }
 
   if (input.scanMode !== "live") {
-    return jsonResponse(buildUnavailableResponse(input, "estimate_mode"));
+    return jsonResponse(request, env, buildUnavailableResponse(input, "estimate_mode"));
+  }
+
+  if (!liveScansEnabled(env)) {
+    return jsonResponse(request, env, buildUnavailableResponse(input, "live_scans_disabled"), 409);
   }
 
   if (!env.SCRAPPA_API_KEY) {
-    return jsonResponse(buildUnavailableResponse(input, "missing_scrappa_key"), 409);
+    return jsonResponse(request, env, buildUnavailableResponse(input, "missing_scrappa_key"), 409);
+  }
+
+  const requestedPoints = input.gridSize * input.gridSize;
+  const maxPoints = maxLiveGridPoints(env);
+  if (requestedPoints > maxPoints) {
+    return jsonResponse(request, env, buildUnavailableResponse(input, "grid_too_large", { maxPoints }), 422);
   }
 
   if (!hasValidCoordinates(input)) {
-    return jsonResponse(buildUnavailableResponse(input, "missing_center_coordinates"), 422);
+    return jsonResponse(request, env, buildUnavailableResponse(input, "missing_center_coordinates"), 422);
   }
 
   try {
     const scan = await runScrappaGrid(input, env.SCRAPPA_API_KEY);
-    return jsonResponse(scan);
+    return jsonResponse(request, env, scan);
   } catch (error) {
     return jsonResponse(
+      request,
+      env,
       {
         error: "Scrappa scan failed.",
         reason: error instanceof Error ? error.message : "Unknown provider error.",
@@ -58,13 +70,25 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
-export async function onRequestGet() {
-  return jsonResponse({
+export async function onRequestGet({ request, env = {} }) {
+  return jsonResponse(request, env, {
     ok: true,
     endpoint: "/api/scans",
     methods: ["POST"],
     provider: "scrappa",
-    requiredForLive: ["businessName", "websiteUrl", "keyword", "city", "state", "centerLat", "centerLon", "SCRAPPA_API_KEY"]
+    liveEnabled: liveScansEnabled(env),
+    maxLiveGridPoints: maxLiveGridPoints(env),
+    requiredForLive: [
+      "businessName",
+      "websiteUrl",
+      "keyword",
+      "city",
+      "state",
+      "centerLat",
+      "centerLon",
+      "SCRAPPA_API_KEY",
+      "ENABLE_LIVE_SCANS=true"
+    ]
   });
 }
 
@@ -122,7 +146,7 @@ async function runScrappaGrid(input, apiKey) {
   };
 }
 
-function buildUnavailableResponse(input, reason) {
+function buildUnavailableResponse(input, reason, extra = {}) {
   const points = hasValidCoordinates(input)
     ? generateGridPoints(input).map((point) => ({ ...point, rank: null }))
     : [];
@@ -133,6 +157,7 @@ function buildUnavailableResponse(input, reason) {
     provider: "scrappa",
     reason,
     modelStatus: statusForUnavailable(reason),
+    ...extra,
     requestCostCredits: hasValidCoordinates(input) ? input.gridSize * input.gridSize : 0,
     territory: points.length
       ? buildTerritoryFromRankPoints({ input, points, provider: "fallback" })
@@ -143,6 +168,8 @@ function buildUnavailableResponse(input, reason) {
 function statusForUnavailable(reason) {
   const statuses = {
     estimate_mode: "Estimate mode selected. No provider request was made.",
+    live_scans_disabled: "Live Scrappa scans are disabled on this deployment until ENABLE_LIVE_SCANS=true is set.",
+    grid_too_large: "Requested grid exceeds the live scan cap. Choose a smaller grid or raise MAX_LIVE_GRID_POINTS.",
     missing_scrappa_key: "Live Scrappa scans require SCRAPPA_API_KEY on the Cloudflare backend.",
     missing_center_coordinates: "Live Scrappa scans require a center latitude and longitude until geocoding is added."
   };
@@ -164,20 +191,39 @@ async function mapWithConcurrency(items, limit, worker) {
   await Promise.all(workers);
 }
 
-function jsonResponse(payload, status = 200) {
+function liveScansEnabled(env = {}) {
+  return String(env.ENABLE_LIVE_SCANS || "").toLowerCase() === "true";
+}
+
+function maxLiveGridPoints(env = {}) {
+  const parsed = Number.parseInt(env.MAX_LIVE_GRID_POINTS, 10);
+  if (!Number.isFinite(parsed)) return 81;
+  return Math.max(9, Math.min(121, parsed));
+}
+
+function jsonResponse(request, env, payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
       ...jsonHeaders,
-      ...corsHeaders()
+      ...corsHeaders(request, env)
     }
   });
 }
 
-function corsHeaders() {
+function corsHeaders(request, env = {}) {
+  const origin = request?.headers?.get("origin") || "";
+  const allowedOrigins = new Set(
+    [
+      new URL(request?.url || "https://local-seo-ranker.pages.dev").origin,
+      ...(env.SCAN_ALLOWED_ORIGINS || "").split(",").map((item) => item.trim()).filter(Boolean)
+    ]
+  );
+  const allowOrigin = origin && allowedOrigins.has(origin) ? origin : [...allowedOrigins][0];
   return {
-    "access-control-allow-origin": "*",
+    "access-control-allow-origin": allowOrigin,
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type"
+    "access-control-allow-headers": "content-type",
+    "vary": "Origin"
   };
 }
