@@ -50,52 +50,51 @@
               semantic coverage, internal links, and AI-readable trust signals.
             </p>
           </div>
-          <div class="hero-proof" aria-label="Current model status">
-            <span id="model-kicker">Workspace status</span>
-            <strong id="model-state">Ready</strong>
-            <small id="model-note">Strategy reports are clearly labeled. Live scans use provider-backed Maps rank checks.</small>
-          </div>
-        </section>
 
-        <section class="account-panel" aria-label="Account and usage">
-          <div class="account-copy">
-            <p class="eyebrow">Account</p>
-            <h2 id="account-title">Open your workspace and start the market read.</h2>
-            <p id="account-description">
-              Create or enter a workspace with email and password. No card is required for planning reports.
-            </p>
-          </div>
-
-          <form id="login-form" class="login-card">
-            <label>
-              Email
-              <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
-            </label>
-            <label>
-              Name
-              <input id="login-name" name="name" type="text" autocomplete="name" placeholder="Your name" />
-            </label>
-            <label>
-              Password
-              <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
-            </label>
-            <button class="primary-action" id="login-button" type="submit">Enter workspace</button>
-            <p class="login-note">New accounts are created automatically. Live rank checks use account credits.</p>
-          </form>
-
-          <div id="account-card" class="account-card is-hidden">
-            <div>
-              <span class="eyebrow">Signed in</span>
-              <strong id="account-email">--</strong>
-              <small id="account-org">--</small>
+          <aside class="hero-access-panel" aria-label="Account and usage">
+            <div class="hero-proof" aria-label="Current model status">
+              <span id="model-kicker">Workspace status</span>
+              <strong id="model-state">Ready</strong>
+              <small id="model-note">Strategy reports are clearly labeled. Live scans use provider-backed Maps rank checks.</small>
             </div>
-            <div class="credit-meter">
-              <span>Credits</span>
-              <strong id="credit-balance">--</strong>
-              <small id="credit-period">--</small>
+
+            <div class="account-copy compact">
+              <p class="eyebrow">Account</p>
+              <h2 id="account-title">Enter the workspace.</h2>
+              <p id="account-description">Create or sign in with email and password.</p>
             </div>
-            <button class="ghost-action" id="logout-button" type="button">Sign out</button>
-          </div>
+
+            <form id="login-form" class="login-card">
+              <label>
+                Email
+                <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
+              </label>
+              <label>
+                Name
+                <input id="login-name" name="name" type="text" autocomplete="name" placeholder="Your name" />
+              </label>
+              <label>
+                Password
+                <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
+              </label>
+              <button class="primary-action" id="login-button" type="submit">Enter workspace</button>
+              <p class="login-note">New accounts are created automatically. Live rank checks use account credits.</p>
+            </form>
+
+            <div id="account-card" class="account-card is-hidden">
+              <div>
+                <span class="eyebrow">Signed in</span>
+                <strong id="account-email">--</strong>
+                <small id="account-org">--</small>
+              </div>
+              <div class="credit-meter">
+                <span>Credits</span>
+                <strong id="credit-balance">--</strong>
+                <small id="credit-period">--</small>
+              </div>
+              <button class="ghost-action" id="logout-button" type="button">Sign out</button>
+            </div>
+          </aside>
         </section>
 
         <section class="public-preview public-only" aria-label="Sample local ranking view">

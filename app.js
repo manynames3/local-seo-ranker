@@ -225,8 +225,8 @@ function setAccount(account) {
   accountCard?.classList.toggle("is-hidden", !signedIn);
 
   if (!signedIn) {
-    if (accountTitle) accountTitle.textContent = "Open your workspace and start the market read.";
-    if (accountDescription) accountDescription.textContent = "Create or enter a workspace with email and password. No card is required for planning reports.";
+    if (accountTitle) accountTitle.textContent = "Enter the workspace.";
+    if (accountDescription) accountDescription.textContent = "Create or sign in with email and password.";
     if (scanHistory) {
       scanHistory.className = "list-stack empty-copy";
       scanHistory.textContent = "Sign in to view saved scans for this workspace.";
@@ -246,7 +246,7 @@ function setAccount(account) {
     window.history.replaceState(null, "", "/app");
   }
   if (accountTitle) accountTitle.textContent = "Workspace ready.";
-  if (accountDescription) accountDescription.textContent = "Run strategy reports, live Maps scans, saved history, and monitoring from this private workspace.";
+  if (accountDescription) accountDescription.textContent = "Run scans, history, monitoring, and exports from this workspace.";
   const credits = currentAccount.credits || {};
   if (accountEmail) accountEmail.textContent = currentAccount.user?.email || "";
   if (accountOrg) accountOrg.textContent = currentAccount.organization?.name || "Workspace";
