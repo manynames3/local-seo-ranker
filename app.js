@@ -1568,7 +1568,7 @@ loginForm?.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         email: normalizeText(data.get("email")),
         name: normalizeText(data.get("name")),
-        accessCode: normalizeText(data.get("accessCode"))
+        password: String(data.get("password") || "")
       })
     });
     setAccount(payload.account);
@@ -1576,10 +1576,7 @@ loginForm?.addEventListener("submit", async (event) => {
     setScanStatus("Signed in. Live Maps scans will be saved to this workspace.", "live");
     showToast("Signed in.");
   } catch (error) {
-    const message =
-      error.code === "invalid_access_code"
-        ? "This workspace requires an access code for new accounts. Returning users can continue with email."
-        : error.message || "Could not enter workspace.";
+    const message = error.code === "invalid_credentials" ? "Email or password is incorrect." : error.message || "Could not enter workspace.";
     setScanStatus(message, "error");
     showToast(message);
   } finally {

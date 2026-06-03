@@ -8,7 +8,7 @@ import {
   UpdateItemCommand
 } from "@aws-sdk/client-dynamodb";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   buildTerritoryFromRankPoints,
   generateGridPoints,
@@ -22,6 +22,7 @@ const ddb = new DynamoDBClient({});
 const ssm = new SSMClient({});
 const TABLE_NAME = process.env.TABLE_NAME;
 const SESSION_COOKIE = "lsr_session";
+const PASSWORD_ITERATIONS = 120000;
 let scrappaKeyCache = null;
 
 export async function handler(event) {
@@ -58,17 +59,32 @@ async function login(event) {
   const email = normalizeEmail(body.email);
   const name = clean(body.name);
   const accessCode = clean(body.accessCode);
+  const password = String(body.password || "");
   if (!email || !email.includes("@")) return jsonResponse(event, { error: "Enter a valid email address.", code: "invalid_email" }, 400);
 
   const configuredCode = clean(process.env.APP_ACCESS_CODE);
   const openSignup = String(process.env.ALLOW_OPEN_SIGNUPS || "").toLowerCase() === "true";
   const firstUserBootstrap = !configuredCode && (await countUsers()) === 0;
   const existingUser = await getItem(`USER#${email}`, "PROFILE");
-  if (!existingUser && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
+  let passwordAuth = null;
+
+  if (existingUser?.password_hash && (!password || !verifyPassword(password, existingUser.password_salt, existingUser.password_hash))) {
+    return jsonResponse(event, { error: "Email or password is incorrect.", code: "invalid_credentials" }, 401);
+  }
+  if (!existingUser?.password_hash && password) {
+    try {
+      passwordAuth = passwordAuthForSignup(password);
+    } catch (error) {
+      if (error.code === "weak_password") return jsonResponse(event, { error: error.message, code: error.code }, 400);
+      throw error;
+    }
+  }
+
+  if (!existingUser && !passwordAuth && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
     return jsonResponse(event, { error: "Access code is required.", code: "invalid_access_code" }, 401);
   }
 
-  const account = await getOrCreateAccount({ email, name, forceAdmin: firstUserBootstrap });
+  const account = await getOrCreateAccount({ email, name, forceAdmin: firstUserBootstrap, passwordAuth });
   const token = randomToken();
   const tokenHash = sha256Hex(token);
   const now = nowIso();
@@ -303,7 +319,7 @@ async function adminOverview(event) {
       schedules: items.filter((item) => item.type === "schedule").length,
       creditsUsed: items.filter((item) => item.type === "usage").reduce((sum, item) => sum + Number(item.credits || 0), 0)
     },
-    recentUsers: items.filter((item) => item.type === "user").sort(sortByCreatedDesc).slice(0, 8),
+    recentUsers: items.filter((item) => item.type === "user").sort(sortByCreatedDesc).slice(0, 8).map(publicUser),
     recentScans: items.filter((item) => item.type === "scan").sort(sortByCreatedDesc).slice(0, 8),
     subscriptions: items.filter((item) => item.type === "subscription").slice(0, 8)
   });
@@ -336,11 +352,16 @@ async function requireAccount(event) {
   };
 }
 
-async function getOrCreateAccount({ email, name, forceAdmin = false }) {
+async function getOrCreateAccount({ email, name, forceAdmin = false, passwordAuth = null }) {
   const existing = await getItem(`USER#${email}`, "PROFILE");
   if (existing) {
     existing.last_seen_at = nowIso();
     if (name) existing.name = name;
+    if (!existing.password_hash && passwordAuth) {
+      existing.password_hash = passwordAuth.hash;
+      existing.password_salt = passwordAuth.salt;
+      existing.password_updated_at = existing.last_seen_at;
+    }
     await putItem(existing);
     const orgRows = await scanByType("membership", "user_id", existing.id);
     const membership = orgRows[0];
@@ -358,6 +379,9 @@ async function getOrCreateAccount({ email, name, forceAdmin = false }) {
     email,
     name,
     role: forceAdmin || adminEmails().has(email) ? "admin" : "member",
+    password_hash: passwordAuth?.hash || null,
+    password_salt: passwordAuth?.salt || null,
+    password_updated_at: passwordAuth ? now : null,
     created_at: now,
     last_seen_at: now
   };
@@ -689,6 +713,30 @@ function statusForUnavailable(reason) {
   return statuses[reason] || "Live scan unavailable.";
 }
 
+function passwordAuthForSignup(password) {
+  if (password.length < 8) {
+    const error = new Error("Password must be at least 8 characters.");
+    error.code = "weak_password";
+    throw error;
+  }
+  const salt = randomBytes(16).toString("base64");
+  return {
+    salt,
+    hash: derivePasswordHash(password, salt)
+  };
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  const hash = derivePasswordHash(password, salt);
+  const left = Buffer.from(hash, "base64");
+  const right = Buffer.from(expectedHash || "", "base64");
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function derivePasswordHash(password, salt) {
+  return pbkdf2Sync(password, Buffer.from(salt || "", "base64"), PASSWORD_ITERATIONS, 32, "sha256").toString("base64");
+}
+
 function scheduleResponse(row) {
   return {
     id: row.id,
@@ -746,11 +794,20 @@ async function mapWithConcurrency(items, limit, worker) {
 
 function accountResponse(account, subscription) {
   return {
-    user: account.user,
+    user: publicUser(account.user),
     organization: account.org,
     membership: account.membership,
     credits: creditSummary(subscription),
     admin: account.user.role === "admin"
+  };
+}
+
+function publicUser(user = {}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name || "",
+    role: user.role || "member"
   };
 }
 

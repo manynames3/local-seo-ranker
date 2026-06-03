@@ -4,6 +4,9 @@ const SCHEMA = [
     email TEXT NOT NULL UNIQUE,
     name TEXT,
     role TEXT NOT NULL DEFAULT 'member',
+    password_hash TEXT,
+    password_salt TEXT,
+    password_updated_at TEXT,
     created_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL
   )`,
@@ -130,9 +133,26 @@ const INDEXES = [
 
 export async function ensureSchema(db) {
   if (!db) throw new Error("DB binding is required.");
-  const statements = [...SCHEMA, ...INDEXES];
-  for (const sql of statements) {
+  for (const sql of SCHEMA) {
     await db.prepare(sql).run();
+  }
+  await ensureColumns(db, "users", [
+    ["password_hash", "TEXT"],
+    ["password_salt", "TEXT"],
+    ["password_updated_at", "TEXT"]
+  ]);
+  for (const sql of INDEXES) {
+    await db.prepare(sql).run();
+  }
+}
+
+async function ensureColumns(db, table, columns) {
+  const existing = await db.prepare(`PRAGMA table_info(${table})`).all();
+  const names = new Set((existing.results || []).map((column) => column.name));
+  for (const [name, type] of columns) {
+    if (!names.has(name)) {
+      await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`).run();
+    }
   }
 }
 

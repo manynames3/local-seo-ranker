@@ -14,6 +14,9 @@ export async function onRequestPost({ request, env = {} }) {
     if (result.response) return result.response;
     return jsonResponse(request, env, { ok: true, account: result.account }, 200, result.headers);
   } catch (error) {
+    if (error.code === "weak_password") {
+      return jsonResponse(request, env, { error: error.message, code: error.code }, 400);
+    }
     return jsonResponse(request, env, { error: error.message || "Could not sign in.", code: "login_failed" }, 500);
   }
 }

@@ -62,8 +62,7 @@
             <p class="eyebrow">Account</p>
             <h2>Open your workspace and start the market read.</h2>
             <p>
-              Returning users can continue with email. Access codes are only needed when a private workspace
-              requires approval for live scan credits.
+              Create or enter a workspace with email and password. No card is required for planning reports.
             </p>
           </div>
 
@@ -77,11 +76,11 @@
               <input id="login-name" name="name" type="text" autocomplete="name" placeholder="Your name" />
             </label>
             <label>
-              Access code
-              <input id="login-code" name="accessCode" type="password" autocomplete="one-time-code" placeholder="If issued" />
+              Password
+              <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="8+ characters" required />
             </label>
             <button class="primary-action" id="login-button" type="submit">Enter workspace</button>
-            <p class="login-note">No card is required to create planning reports. Live rank checks use account credits.</p>
+            <p class="login-note">New accounts are created automatically. Live rank checks use account credits.</p>
           </form>
 
           <div id="account-card" class="account-card is-hidden">

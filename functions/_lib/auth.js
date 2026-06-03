@@ -1,6 +1,8 @@
 import { clearSessionCookie, jsonResponse, sessionCookie, sessionTokenFromRequest } from "./http.js";
 import { addDaysIso, creditSummary, ensureSchema, ensureSubscription, normalizeEmail, nowIso, sha256Hex } from "./db.js";
 
+const PASSWORD_ITERATIONS = 120000;
+
 export async function loginWithAccessCode(request, env, body = {}) {
   if (!env.DB) {
     return { response: jsonResponse(request, env, { error: "Account database is not configured.", code: "db_missing" }, 503) };
@@ -9,6 +11,7 @@ export async function loginWithAccessCode(request, env, body = {}) {
   const email = normalizeEmail(body.email);
   const name = String(body.name || "").trim();
   const accessCode = String(body.accessCode || "").trim();
+  const password = String(body.password || "");
 
   if (!email || !email.includes("@")) {
     return { response: jsonResponse(request, env, { error: "Enter a valid email address.", code: "invalid_email" }, 400) };
@@ -18,12 +21,23 @@ export async function loginWithAccessCode(request, env, body = {}) {
   const openSignup = String(env.ALLOW_OPEN_SIGNUPS || "").toLowerCase() === "true";
   const userCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
   const firstUserBootstrap = !configuredCode && Number(userCount?.count || 0) === 0;
-  const existingUser = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
-  if (!existingUser && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
+  const existingUser = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
+  let passwordAuth = null;
+
+  if (existingUser?.password_hash) {
+    const validPassword = password && (await verifyPassword(password, existingUser.password_salt, existingUser.password_hash));
+    if (!validPassword) {
+      return { response: jsonResponse(request, env, { error: "Email or password is incorrect.", code: "invalid_credentials" }, 401) };
+    }
+  } else if (password) {
+    passwordAuth = await passwordAuthForSignup(password);
+  }
+
+  if (!existingUser && !passwordAuth && !openSignup && !firstUserBootstrap && (!configuredCode || accessCode !== configuredCode)) {
     return { response: jsonResponse(request, env, { error: "Access code is required.", code: "invalid_access_code" }, 401) };
   }
 
-  const account = await getOrCreateAccount(env.DB, { email, name, env, forceAdmin: firstUserBootstrap });
+  const account = await getOrCreateAccount(env.DB, { email, name, env, forceAdmin: firstUserBootstrap, passwordAuth });
   const token = await createSession(env.DB, account.user.id);
   const subscription = await ensureSubscription(env.DB, account.org.id, env);
   return {
@@ -89,7 +103,7 @@ export async function requireAccount(request, env) {
 
 export function accountResponse(account, subscription) {
   return {
-    user: account.user,
+    user: publicUser(account.user),
     organization: account.org,
     membership: account.membership,
     credits: creditSummary(subscription),
@@ -116,7 +130,16 @@ export function adminEmails(env = {}) {
   );
 }
 
-async function getOrCreateAccount(db, { email, name, env, forceAdmin = false }) {
+function publicUser(user = {}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name || "",
+    role: user.role || "member"
+  };
+}
+
+async function getOrCreateAccount(db, { email, name, env, forceAdmin = false, passwordAuth = null }) {
   const now = nowIso();
   const isAdmin = forceAdmin || adminEmails(env).has(email);
   let user = await db.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
@@ -126,15 +149,47 @@ async function getOrCreateAccount(db, { email, name, env, forceAdmin = false }) 
       email,
       name,
       role: isAdmin ? "admin" : "member",
+      password_hash: passwordAuth?.hash || null,
+      password_salt: passwordAuth?.salt || null,
+      password_updated_at: passwordAuth ? now : null,
       created_at: now,
       last_seen_at: now
     };
     await db
-      .prepare("INSERT INTO users (id, email, name, role, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(user.id, user.email, user.name, user.role, user.created_at, user.last_seen_at)
+      .prepare(
+        `INSERT INTO users
+          (id, email, name, role, password_hash, password_salt, password_updated_at, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.password_hash,
+        user.password_salt,
+        user.password_updated_at,
+        user.created_at,
+        user.last_seen_at
+      )
       .run();
   } else {
-    await db.prepare("UPDATE users SET name = COALESCE(NULLIF(?, ''), name), last_seen_at = ? WHERE id = ?").bind(name, now, user.id).run();
+    if (!user.password_hash && passwordAuth) {
+      await db
+        .prepare(
+          `UPDATE users
+           SET name = COALESCE(NULLIF(?, ''), name),
+               password_hash = ?,
+               password_salt = ?,
+               password_updated_at = ?,
+               last_seen_at = ?
+           WHERE id = ?`
+        )
+        .bind(name, passwordAuth.hash, passwordAuth.salt, now, now, user.id)
+        .run();
+    } else {
+      await db.prepare("UPDATE users SET name = COALESCE(NULLIF(?, ''), name), last_seen_at = ? WHERE id = ?").bind(name, now, user.id).run();
+    }
     user = await db.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
   }
 
@@ -163,6 +218,64 @@ async function getOrCreateAccount(db, { email, name, env, forceAdmin = false }) 
 
   user.role = isAdmin ? "admin" : user.role;
   return { user, org, membership };
+}
+
+async function passwordAuthForSignup(password) {
+  if (password.length < 8) {
+    const error = new Error("Password must be at least 8 characters.");
+    error.code = "weak_password";
+    throw error;
+  }
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const salt = bytesToBase64(saltBytes);
+  return {
+    salt,
+    hash: await derivePasswordHash(password, salt)
+  };
+}
+
+async function verifyPassword(password, salt, expectedHash) {
+  const hash = await derivePasswordHash(password, salt);
+  return constantTimeEqual(hash, expectedHash);
+}
+
+async function derivePasswordHash(password, salt) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: base64ToBytes(salt),
+      iterations: PASSWORD_ITERATIONS
+    },
+    key,
+    256
+  );
+  return bytesToBase64(new Uint8Array(bits));
+}
+
+function constantTimeEqual(left, right) {
+  const a = base64ToBytes(left || "");
+  const b = base64ToBytes(right || "");
+  const maxLength = Math.max(a.length, b.length);
+  let diff = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < maxLength; i += 1) {
+    diff |= (a[i] || 0) ^ (b[i] || 0);
+  }
+  return diff === 0;
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value || ""), (char) => char.charCodeAt(0));
 }
 
 async function createSession(db, userId) {
