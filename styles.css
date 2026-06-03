@@ -205,8 +205,14 @@ h3 {
   padding: 18px 24px 24px;
 }
 
+body:not(.is-authenticated) .workspace-private,
+body.is-authenticated .public-only {
+  display: none !important;
+}
+
 .hero-strip,
 .account-panel,
+.public-preview,
 .scan-panel,
 .territory-card,
 .market-card,
@@ -397,6 +403,141 @@ h3 {
   border-radius: 8px;
   padding: 12px;
   background: var(--surface-2);
+}
+
+.public-preview {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.75fr) minmax(0, 1.25fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.public-preview-copy {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.public-preview-copy h2 {
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.02;
+}
+
+.public-preview-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preview-metrics span {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+
+.preview-metrics strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.preview-metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sample-rank-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sample-map-header {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-2);
+  text-align: right;
+}
+
+.sample-map-header span,
+.sample-map-header small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sample-map-header strong {
+  font-size: 18px;
+}
+
+.sample-map-surface {
+  position: relative;
+  display: grid;
+  min-height: 410px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(35deg, transparent 0 44%, rgba(255, 255, 255, 0.84) 44% 47%, transparent 47%),
+    linear-gradient(152deg, transparent 0 56%, rgba(255, 255, 255, 0.75) 56% 59%, transparent 59%),
+    linear-gradient(90deg, rgba(21, 145, 90, 0.12), rgba(36, 108, 145, 0.08)),
+    repeating-linear-gradient(0deg, rgba(99, 112, 109, 0.14) 0 1px, transparent 1px 58px),
+    repeating-linear-gradient(90deg, rgba(99, 112, 109, 0.12) 0 1px, transparent 1px 58px),
+    #e6eee8;
+}
+
+.sample-map-surface::before,
+.sample-map-surface::after {
+  position: absolute;
+  content: "";
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.sample-map-surface::before {
+  width: min(500px, 72%);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(21, 145, 90, 0.18), rgba(149, 201, 74, 0.12) 45%, transparent 72%);
+}
+
+.sample-map-surface::after {
+  left: 12%;
+  bottom: 7%;
+  width: 230px;
+  height: 170px;
+  background: radial-gradient(circle, rgba(201, 69, 54, 0.48), rgba(244, 111, 34, 0.28) 38%, transparent 74%);
+  filter: blur(7px);
+}
+
+.sample-rank-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(22px, 1fr));
+  gap: 7px;
+  width: min(560px, 92%);
+}
+
+.sample-rank-grid .rank-cell {
+  font-size: 11px;
 }
 
 .account-card strong,
@@ -1779,6 +1920,7 @@ th:first-child {
   .scan-panel,
   .account-panel,
   .about-product,
+  .public-preview,
   .account-data-grid,
   .trust-strip,
   .market-board,
@@ -1843,6 +1985,7 @@ th:first-child {
   .center-fields,
   .login-card,
   .account-card,
+  .preview-metrics,
   .competitor-fields,
   .scan-settings,
   .schedule-form,

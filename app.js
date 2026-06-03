@@ -3,6 +3,8 @@ const exampleButton = document.querySelector("#example-button");
 const loginForm = document.querySelector("#login-form");
 const loginButton = document.querySelector("#login-button");
 const logoutButton = document.querySelector("#logout-button");
+const accountTitle = document.querySelector("#account-title");
+const accountDescription = document.querySelector("#account-description");
 const accountCard = document.querySelector("#account-card");
 const accountEmail = document.querySelector("#account-email");
 const accountOrg = document.querySelector("#account-org");
@@ -36,6 +38,7 @@ const gridSizeField = document.querySelector("#gridSize");
 const modelKicker = document.querySelector("#model-kicker");
 const modelState = document.querySelector("#model-state");
 const modelNote = document.querySelector("#model-note");
+const samplePreviewGrid = document.querySelector("#sample-preview-grid");
 const scanModeControls = [...document.querySelectorAll('input[name="scanMode"]')];
 const exportButtons = {
   copy: document.querySelector("#copy-report"),
@@ -216,10 +219,14 @@ async function apiFetch(path, options = {}) {
 function setAccount(account) {
   currentAccount = account || null;
   const signedIn = Boolean(currentAccount);
+  document.body.classList.toggle("is-authenticated", signedIn);
+  document.body.classList.toggle("is-public", !signedIn);
   loginForm?.classList.toggle("is-hidden", signedIn);
   accountCard?.classList.toggle("is-hidden", !signedIn);
 
   if (!signedIn) {
+    if (accountTitle) accountTitle.textContent = "Open your workspace and start the market read.";
+    if (accountDescription) accountDescription.textContent = "Create or enter a workspace with email and password. No card is required for planning reports.";
     if (scanHistory) {
       scanHistory.className = "list-stack empty-copy";
       scanHistory.textContent = "Sign in to view saved scans for this workspace.";
@@ -229,9 +236,17 @@ function setAccount(account) {
       scheduleList.textContent = "Sign in to view scheduled scans for this workspace.";
     }
     adminPanel?.classList.add("is-hidden");
+    if (window.location.pathname === "/app") {
+      window.history.replaceState(null, "", "/");
+    }
     return;
   }
 
+  if (window.location.pathname !== "/app") {
+    window.history.replaceState(null, "", "/app");
+  }
+  if (accountTitle) accountTitle.textContent = "Workspace ready.";
+  if (accountDescription) accountDescription.textContent = "Run strategy reports, live Maps scans, saved history, and monitoring from this private workspace.";
   const credits = currentAccount.credits || {};
   if (accountEmail) accountEmail.textContent = currentAccount.user?.email || "";
   if (accountOrg) accountOrg.textContent = currentAccount.organization?.name || "Workspace";
@@ -246,6 +261,24 @@ function setAccount(account) {
   } else {
     adminPanel?.classList.add("is-hidden");
   }
+}
+
+function renderPublicPreviewGrid() {
+  if (!samplePreviewGrid) return;
+  const ranks = [
+    9, 7, 6, 6, 8, 8, 8, 9, 10,
+    8, 7, 6, 4, 5, 6, 7, 8, 9,
+    7, 6, 5, 4, 2, 4, 6, 7, 9,
+    8, 8, 4, 2, 1, 2, 4, 6, 8,
+    9, 6, 2, 3, 1, 2, 3, 7, 9,
+    10, 7, 4, 5, 3, 5, 6, 9, 11,
+    12, 13, 6, 7, 8, 6, 7, 8, 7,
+    14, 12, 13, 10, 11, 8, 9, 10, 11,
+    15, 14, 12, 13, 11, 10, 9, 11, 12
+  ];
+  samplePreviewGrid.innerHTML = ranks
+    .map((rank, index) => `<span class="rank-cell ${rankTone(rank)}${index === 40 ? " center" : ""}">${rank}</span>`)
+    .join("");
 }
 
 async function loadAccount() {
@@ -1077,7 +1110,7 @@ function renderQuickRead(report) {
 }
 
 function renderScorecards(scores) {
-  scorecards.className = "score-grid";
+  scorecards.className = "score-grid workspace-private";
   scorecards.innerHTML = scoreDefinitions
     .map(([key, label, description]) => {
       const score = scores[key];
@@ -1706,11 +1739,15 @@ scanModeControls.forEach((control) => {
   });
 });
 updateCostEstimate();
-loadAccount();
+initApp();
 
-const initialParams = new URLSearchParams(window.location.search);
-if (initialParams.get("example") === "1" || initialParams.get("demo") === "1") {
-  loadExample();
+async function initApp() {
+  renderPublicPreviewGrid();
+  const initialParams = new URLSearchParams(window.location.search);
+  await loadAccount();
+  if (currentAccount && (initialParams.get("example") === "1" || initialParams.get("demo") === "1")) {
+    loadExample();
+  }
 }
 
 exportButtons.copy.addEventListener("click", async () => {
