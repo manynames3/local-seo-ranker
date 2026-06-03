@@ -22,7 +22,7 @@ const ddb = new DynamoDBClient({});
 const ssm = new SSMClient({});
 const TABLE_NAME = process.env.TABLE_NAME;
 const SESSION_COOKIE = "lsr_session";
-const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_ITERATIONS = 100000;
 let scrappaKeyCache = null;
 
 export async function handler(event) {

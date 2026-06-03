@@ -1,7 +1,7 @@
 import { clearSessionCookie, jsonResponse, sessionCookie, sessionTokenFromRequest } from "./http.js";
 import { addDaysIso, creditSummary, ensureSchema, ensureSubscription, normalizeEmail, nowIso, sha256Hex } from "./db.js";
 
-const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_ITERATIONS = 100000;
 
 export async function loginWithAccessCode(request, env, body = {}) {
   if (!env.DB) {
