@@ -88,6 +88,10 @@ h3 {
   min-height: 100vh;
 }
 
+body.has-modal {
+  overflow: hidden;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -100,6 +104,15 @@ h3 {
   padding: 12px 24px;
   background: rgba(238, 242, 240, 0.9);
   backdrop-filter: blur(16px);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .brand {
@@ -170,6 +183,7 @@ h3 {
 }
 
 .export-bar button,
+.signin-button,
 .primary-action,
 .ghost-action {
   min-height: 42px;
@@ -192,9 +206,19 @@ h3 {
 }
 
 .export-bar button:hover:enabled,
+.signin-button:hover,
 .primary-action:hover,
 .ghost-action:hover {
   transform: translateY(-1px);
+}
+
+.signin-button {
+  border: 0;
+  border-radius: 7px;
+  padding: 10px 16px;
+  color: #fff;
+  background: var(--graphite);
+  box-shadow: 0 10px 24px rgba(24, 32, 31, 0.18);
 }
 
 .workspace {
@@ -389,20 +413,6 @@ body.is-authenticated .public-only {
   line-height: 1.5;
 }
 
-.account-copy.compact {
-  align-content: start;
-  padding: 2px 2px 0;
-}
-
-.account-copy.compact h2 {
-  margin-bottom: 2px;
-  font-size: 18px;
-}
-
-.account-copy.compact p {
-  font-size: 13px;
-}
-
 .login-card {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
@@ -424,33 +434,6 @@ body.is-authenticated .public-only {
   line-height: 1.4;
 }
 
-.hero-access-panel .login-card {
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 10px;
-}
-
-.hero-access-panel .login-card label:first-child,
-.hero-access-panel .login-card .primary-action,
-.hero-access-panel .login-card .login-note {
-  grid-column: 1 / -1;
-}
-
-.hero-access-panel .login-card label {
-  gap: 4px;
-  font-size: 11px;
-}
-
-.hero-access-panel .login-card input {
-  min-height: 38px;
-  padding: 9px 10px;
-}
-
-.hero-access-panel .login-card .primary-action,
-.hero-access-panel .account-card .ghost-action {
-  width: 100%;
-}
-
 .account-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -463,8 +446,106 @@ body.is-authenticated .public-only {
   background: var(--surface-2);
 }
 
-.hero-access-panel .account-card {
+.topbar-account {
+  grid-template-columns: minmax(140px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  max-width: 520px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: none;
+}
+
+.topbar-account .eyebrow {
+  margin-bottom: 2px;
+  font-size: 9px;
+}
+
+.topbar-account strong,
+.topbar-account small {
+  display: block;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-account strong {
+  font-size: 13px;
+}
+
+.topbar-account small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.topbar-account .credit-meter {
+  padding: 8px 10px;
+}
+
+.topbar-account .credit-meter strong {
+  max-width: none;
+  font-size: 16px;
+}
+
+.topbar-account .ghost-action {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.auth-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(24, 32, 31, 0.52);
+  cursor: pointer;
+}
+
+.auth-modal {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  width: min(440px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(24, 32, 31, 0.28);
+}
+
+.auth-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.auth-modal .account-copy h2 {
+  font-size: 24px;
+}
+
+.auth-close {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.auth-modal .login-card {
   grid-template-columns: 1fr;
+}
+
+.auth-modal .login-card .primary-action {
+  width: 100%;
 }
 
 .public-preview {
@@ -1991,10 +2072,6 @@ th:first-child {
     grid-template-columns: 1fr;
   }
 
-  .hero-access-panel .login-card {
-    grid-template-columns: 1fr;
-  }
-
   .hero-access-panel .hero-proof {
     grid-template-columns: 1fr;
   }
@@ -2027,14 +2104,38 @@ th:first-child {
   }
 
   .topbar {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  body.is-authenticated .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+  }
+
+  body.is-authenticated .topbar-actions {
+    width: 100%;
+  }
+
+  .signin-button {
+    min-height: 40px;
+    padding-inline: 14px;
   }
 
   .export-bar {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .topbar-account {
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-width: none;
   }
 
   .export-bar button {

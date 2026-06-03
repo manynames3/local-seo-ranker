@@ -1,5 +1,9 @@
 const form = document.querySelector("#seo-form");
 const exampleButton = document.querySelector("#example-button");
+const openLoginButton = document.querySelector("#open-login");
+const authDialog = document.querySelector("#auth-dialog");
+const closeLoginButton = document.querySelector("#close-login");
+const closeLoginBackdrop = document.querySelector("#close-login-backdrop");
 const loginForm = document.querySelector("#login-form");
 const loginButton = document.querySelector("#login-button");
 const logoutButton = document.querySelector("#logout-button");
@@ -216,6 +220,21 @@ async function apiFetch(path, options = {}) {
   return payload;
 }
 
+function openAuthDialog() {
+  if (!authDialog || currentAccount) return;
+  authDialog.classList.remove("is-hidden");
+  authDialog.setAttribute("aria-hidden", "false");
+  document.body.classList.add("has-modal");
+  window.setTimeout(() => loginForm?.querySelector("input[name='email']")?.focus(), 0);
+}
+
+function closeAuthDialog() {
+  if (!authDialog) return;
+  authDialog.classList.add("is-hidden");
+  authDialog.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("has-modal");
+}
+
 function setAccount(account) {
   currentAccount = account || null;
   const signedIn = Boolean(currentAccount);
@@ -245,6 +264,7 @@ function setAccount(account) {
   if (window.location.pathname !== "/app") {
     window.history.replaceState(null, "", "/app");
   }
+  closeAuthDialog();
   if (accountTitle) accountTitle.textContent = "Workspace ready.";
   if (accountDescription) accountDescription.textContent = "Run scans, history, monitoring, and exports from this workspace.";
   const credits = currentAccount.credits || {};
@@ -1519,6 +1539,7 @@ form.addEventListener("submit", async (event) => {
         setScanStatus("Sign in before running a live Maps scan.", "error");
         setModelStatusUI({ kicker: "Action needed", state: "Sign in", note: "Live rank checks are tied to account credits, coordinates, and saved history." });
         showToast("Sign in before running a live Maps scan.");
+        openAuthDialog();
         return;
       }
       setScanStatus("Running live Maps scan...", "warning");
@@ -1564,6 +1585,24 @@ exampleButton.addEventListener("click", () => {
   loadExample();
 });
 
+openLoginButton?.addEventListener("click", () => {
+  openAuthDialog();
+});
+
+closeLoginButton?.addEventListener("click", () => {
+  closeAuthDialog();
+});
+
+closeLoginBackdrop?.addEventListener("click", () => {
+  closeAuthDialog();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && authDialog && !authDialog.classList.contains("is-hidden")) {
+    closeAuthDialog();
+  }
+});
+
 function loadExample() {
   const example = {
     websiteUrl: "https://atlanta-hometownroofing.example",
@@ -1607,6 +1646,7 @@ loginForm?.addEventListener("submit", async (event) => {
     setAccount(payload.account);
     setModelStatusUI({ kicker: "Workspace", state: "Signed in", note: "Live Maps scans are available when credits, provider configuration, and coordinates are ready." });
     setScanStatus("Signed in. Live Maps scans will be saved to this workspace.", "live");
+    closeAuthDialog();
     showToast("Signed in.");
   } catch (error) {
     const message = error.code === "invalid_credentials" ? "Email or password is incorrect." : error.message || "Could not enter workspace.";
@@ -1622,6 +1662,7 @@ logoutButton?.addEventListener("click", async () => {
   try {
     await apiFetch("/api/auth/logout", { method: "POST" });
     setAccount(null);
+    closeAuthDialog();
     setModelStatusUI();
     setScanStatus("Signed out. Strategy reports are still available without credits.", "neutral");
     showToast("Signed out.");
@@ -1637,6 +1678,7 @@ findCenterButton?.addEventListener("click", async () => {
   if (!currentAccount) {
     setScanStatus("Sign in before finding a live map center.", "error");
     showToast("Sign in before finding a live map center.");
+    openAuthDialog();
     return;
   }
   if (!input.businessName || !input.city || !input.state) {
@@ -1678,6 +1720,7 @@ scheduleForm?.addEventListener("submit", async (event) => {
   if (!currentAccount) {
     setScanStatus("Sign in before saving scheduled scans.", "error");
     showToast("Sign in before saving scheduled scans.");
+    openAuthDialog();
     return;
   }
 
